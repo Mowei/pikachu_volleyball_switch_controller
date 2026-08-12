@@ -14,8 +14,6 @@
 1. 開啟命令列，切換到本專案目錄：
 
 ```powershell
-cd c:\Users\mowei\Desktop\GITHUB\switch_controller
-dotnet restore
 dotnet build
 dotnet run
 ```
