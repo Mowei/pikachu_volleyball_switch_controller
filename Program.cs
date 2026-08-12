@@ -23,6 +23,9 @@ internal static class Program
     private static bool _downHeld;
     private static readonly PlayerMode Mode = DetermineMode();
     private static NotifyIcon? _notifyIcon;
+    private static Icon? _redIcon;
+    private static Icon? _yellowIcon;
+    private static Icon? _greenIcon;
     private static CancellationTokenSource? _cts;
     private static Thread? _workerThread;
 
@@ -55,25 +58,19 @@ internal static class Program
     {
         public TrayApplicationContext()
         {
+            LoadNotifyIcons();
+
             _notifyIcon = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
-                Text = "Switch Motion Bridge",
+                Icon = _redIcon ?? SystemIcons.Application,
+                Text = "Switch Motion Bridge - 未連線",
                 Visible = true,
                 ContextMenuStrip = new ContextMenuStrip()
             };
 
-            _notifyIcon.ContextMenuStrip.Items.Add("Show status", null, ShowStatus_Click);
             _notifyIcon.ContextMenuStrip.Items.Add("Exit", null, Exit_Click);
-            _notifyIcon.DoubleClick += (_, _) => ShowStatusBalloon();
 
             StartWorker();
-            ShowStatusBalloon("啟動完成", "Switch Motion Bridge 已啟動，右鍵選單可退出。", ToolTipIcon.Info);
-        }
-
-        private void ShowStatus_Click(object? sender, EventArgs e)
-        {
-            ShowStatusBalloon();
         }
 
         private void Exit_Click(object? sender, EventArgs e)
@@ -122,18 +119,23 @@ internal static class Program
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            var device = FindSwitchController();
-            if (device is null)
+            var devices = GetConnectedSwitchControllers();
+            var count = devices.Length;
+            if (count == 0)
             {
-                ShowStatusBalloon("未找到控制器", "請連接 Joy-Con 或 Pro Controller。將在 5 秒後重試。", ToolTipIcon.Warning);
+                UpdateTrayStatus(ConnectionState.Disconnected, "未找到控制器");
                 Thread.Sleep(5000);
                 continue;
             }
 
-            ShowStatusBalloon("已連接控制器", $"找到控制器，請開始體感操作。", ToolTipIcon.Info);
+            var state = count >= 2 ? ConnectionState.DualConnected : ConnectionState.SingleConnected;
+            UpdateTrayStatus(state, count >= 2 ? "已連接 2 支控制器" : "已連接 1 支控制器");
 
             try
             {
+                using var stream = devices[0].Open();
+                stream.ReadTimeout = 2000;
+                EnableImu(stream, devices[0]);
                 using var stream = device.Open();
                 stream.ReadTimeout = 2000;
                 EnableImu(stream, device);
@@ -151,12 +153,12 @@ internal static class Program
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
             {
-                ShowStatusBalloon("操作已取消", "存取控制器時遭到取消。", ToolTipIcon.Error);
+                UpdateTrayStatus(ConnectionState.Disconnected, "存取控制器遭到取消");
                 Thread.Sleep(5000);
             }
             catch (Exception ex)
             {
-                ShowStatusBalloon("讀取失敗", ex.Message, ToolTipIcon.Error);
+                UpdateTrayStatus(ConnectionState.Disconnected, ex.Message);
                 Thread.Sleep(5000);
             }
         }
@@ -164,17 +166,21 @@ internal static class Program
 
     private static HidDevice? FindSwitchController()
     {
+        var devices = GetConnectedSwitchControllers();
+        return devices.Length > 0 ? devices[0] : null;
+    }
+
+    private static HidDevice[] GetConnectedSwitchControllers()
+    {
         var list = DeviceList.Local;
+        var connected = new List<HidDevice>();
 
         foreach (var productId in SupportedProductIds)
         {
-            foreach (var device in list.GetHidDevices(NintendoVendorId, productId))
-            {
-                return device;
-            }
+            connected.AddRange(list.GetHidDevices(NintendoVendorId, productId));
         }
 
-        return null;
+        return connected.ToArray();
     }
 
     private static void EnableImu(HidStream stream, HidDevice device)
@@ -346,18 +352,54 @@ internal static class Program
         SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
     }
 
-    private static void ShowStatusBalloon(string title = "Switch Motion Bridge", string text = "運行中，右鍵選單可退出。", ToolTipIcon icon = ToolTipIcon.Info)
+    private static void UpdateTrayStatus(ConnectionState state, string text)
     {
         if (_notifyIcon is null)
         {
             return;
         }
 
-        _notifyIcon.BalloonTipTitle = title;
-        _notifyIcon.BalloonTipText = text;
-        _notifyIcon.BalloonTipIcon = icon;
-        _notifyIcon.ShowBalloonTip(2000);
+        _notifyIcon.Icon = state switch
+        {
+            ConnectionState.Disconnected => _redIcon ?? SystemIcons.Error,
+            ConnectionState.SingleConnected => _yellowIcon ?? SystemIcons.Warning,
+            ConnectionState.DualConnected => _greenIcon ?? SystemIcons.Application,
+            _ => _redIcon ?? SystemIcons.Error
+        };
+
         _notifyIcon.Text = text.Length <= 63 ? text : text.Substring(0, 63);
+    }
+
+    private static void LoadNotifyIcons()
+    {
+        _redIcon = CreateColorIcon(Color.Red);
+        _yellowIcon = CreateColorIcon(Color.Yellow);
+        _greenIcon = CreateColorIcon(Color.LimeGreen);
+    }
+
+    private static Icon CreateColorIcon(Color color)
+    {
+        using var bitmap = new Bitmap(16, 16);
+        using (var g = Graphics.FromImage(bitmap))
+        {
+            g.Clear(Color.Transparent);
+            using var brush = new SolidBrush(color);
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.FillEllipse(brush, 1, 1, 14, 14);
+        }
+
+        var handle = bitmap.GetHicon();
+        return Icon.FromHandle(handle);
+    }
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr hObject);
+
+    private enum ConnectionState
+    {
+        Disconnected,
+        SingleConnected,
+        DualConnected
     }
 
     [DllImport("user32.dll")]
