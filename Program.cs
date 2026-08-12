@@ -23,6 +23,7 @@ internal static class Program
     private static bool _downHeld;
     private static readonly PlayerMode Mode = DetermineMode();
     private static NotifyIcon? _notifyIcon;
+    private static ToolStripMenuItem? _statusMenuItem;
     private static Icon? _redIcon;
     private static Icon? _yellowIcon;
     private static Icon? _greenIcon;
@@ -68,6 +69,12 @@ internal static class Program
                 ContextMenuStrip = new ContextMenuStrip()
             };
 
+            _statusMenuItem = new ToolStripMenuItem("狀態：未連線")
+            {
+                Enabled = false
+            };
+            _notifyIcon.ContextMenuStrip.Items.Add(_statusMenuItem);
+            _notifyIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
             _notifyIcon.ContextMenuStrip.Items.Add("Exit", null, Exit_Click);
 
             StartWorker();
@@ -133,9 +140,7 @@ internal static class Program
 
             try
             {
-                using var stream = devices[0].Open();
-                stream.ReadTimeout = 2000;
-                EnableImu(stream, devices[0]);
+                var device = devices[0];
                 using var stream = device.Open();
                 stream.ReadTimeout = 2000;
                 EnableImu(stream, device);
@@ -368,6 +373,10 @@ internal static class Program
         };
 
         _notifyIcon.Text = text.Length <= 63 ? text : text.Substring(0, 63);
+        if (_statusMenuItem is not null)
+        {
+            _statusMenuItem.Text = $"狀態：{text}";
+        }
     }
 
     private static void LoadNotifyIcons()
