@@ -1,6 +1,9 @@
 using System;
+using System.ComponentModel;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Windows.Forms;
 using HidSharp;
 
 internal static class Program
@@ -19,6 +22,9 @@ internal static class Program
     private static bool _rightHeld;
     private static bool _downHeld;
     private static readonly PlayerMode Mode = DetermineMode();
+    private static NotifyIcon? _notifyIcon;
+    private static CancellationTokenSource? _cts;
+    private static Thread? _workerThread;
 
     private enum PlayerMode
     {
@@ -37,37 +43,122 @@ internal static class Program
         return PlayerMode.LeftPlayer;
     }
 
+    [STAThread]
     private static void Main()
     {
-        Console.WriteLine("Switch Motion Bridge\n");
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Application.Run(new TrayApplicationContext());
+    }
 
-        var device = FindSwitchController();
-        if (device is null)
+    private sealed class TrayApplicationContext : ApplicationContext
+    {
+        public TrayApplicationContext()
         {
-            Console.WriteLine("找不到 Switch 控制器，請先連接 Joy-Con 或 Pro Controller。按任意鍵結束。");
-            Console.ReadKey();
+            _notifyIcon = new NotifyIcon
+            {
+                Icon = SystemIcons.Application,
+                Text = "Switch Motion Bridge",
+                Visible = true,
+                ContextMenuStrip = new ContextMenuStrip()
+            };
+
+            _notifyIcon.ContextMenuStrip.Items.Add("Show status", null, ShowStatus_Click);
+            _notifyIcon.ContextMenuStrip.Items.Add("Exit", null, Exit_Click);
+            _notifyIcon.DoubleClick += (_, _) => ShowStatusBalloon();
+
+            StartWorker();
+            ShowStatusBalloon("啟動完成", "Switch Motion Bridge 已啟動，右鍵選單可退出。", ToolTipIcon.Info);
+        }
+
+        private void ShowStatus_Click(object? sender, EventArgs e)
+        {
+            ShowStatusBalloon();
+        }
+
+        private void Exit_Click(object? sender, EventArgs e)
+        {
+            ExitThread();
+        }
+
+        protected override void ExitThreadCore()
+        {
+            StopWorker();
+            if (_notifyIcon is not null)
+            {
+                _notifyIcon.Visible = false;
+                _notifyIcon.Dispose();
+            }
+
+            base.ExitThreadCore();
+        }
+    }
+
+    private static void StartWorker()
+    {
+        _cts = new CancellationTokenSource();
+        _workerThread = new Thread(() => WorkerLoop(_cts.Token))
+        {
+            IsBackground = true,
+            Name = "SwitchMotionBridgeWorker"
+        };
+        _workerThread.Start();
+    }
+
+    private static void StopWorker()
+    {
+        if (_cts is null)
+        {
             return;
         }
 
-        Console.WriteLine($"找到控制器：{device.ProductName} PID=0x{device.ProductId:X4}\n");
+        _cts.Cancel();
+        _workerThread?.Join(1000);
+        _cts.Dispose();
+        _cts = null;
+    }
 
-        using var stream = device.Open();
-        stream.ReadTimeout = 2000;
-
-        EnableImu(stream, device);
-
-        Console.WriteLine("開始讀取報文，請開始體感動作...");
-
-        var reportBuffer = new byte[device.GetMaxInputReportLength()];
-
-        while (true)
+    private static void WorkerLoop(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
         {
-            if (!TryReadReport(stream, reportBuffer, out var bytesRead))
+            var device = FindSwitchController();
+            if (device is null)
             {
+                ShowStatusBalloon("未找到控制器", "請連接 Joy-Con 或 Pro Controller。將在 5 秒後重試。", ToolTipIcon.Warning);
+                Thread.Sleep(5000);
                 continue;
             }
 
-            ProcessReport(reportBuffer, bytesRead);
+            ShowStatusBalloon("已連接控制器", $"找到控制器，請開始體感操作。", ToolTipIcon.Info);
+
+            try
+            {
+                using var stream = device.Open();
+                stream.ReadTimeout = 2000;
+                EnableImu(stream, device);
+
+                var reportBuffer = new byte[device.GetMaxInputReportLength()];
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    if (!TryReadReport(stream, reportBuffer, out var bytesRead))
+                    {
+                        continue;
+                    }
+
+                    ProcessReport(reportBuffer, bytesRead);
+                }
+            }
+            catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+            {
+                ShowStatusBalloon("操作已取消", "存取控制器時遭到取消。", ToolTipIcon.Error);
+                Thread.Sleep(5000);
+            }
+            catch (Exception ex)
+            {
+                ShowStatusBalloon("讀取失敗", ex.Message, ToolTipIcon.Error);
+                Thread.Sleep(5000);
+            }
         }
     }
 
@@ -88,8 +179,6 @@ internal static class Program
 
     private static void EnableImu(HidStream stream, HidDevice device)
     {
-        Console.WriteLine("嘗試啟用 IMU...");
-
         var outputReportLength = device.GetMaxOutputReportLength();
         var command = new byte[outputReportLength];
 
@@ -98,15 +187,7 @@ internal static class Program
         command[2] = 0x40; // Subcommand: enable IMU
         command[3] = 0x01; // Enable
 
-        try
-        {
-            stream.Write(command, 0, command.Length);
-            Console.WriteLine("已送出 IMU 啟用指令。");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"啟用 IMU 失敗：{ex.Message}");
-        }
+        stream.Write(command, 0, command.Length);
     }
 
     private static bool TryReadReport(HidStream stream, byte[] buffer, out int bytesRead)
@@ -118,12 +199,6 @@ internal static class Program
         }
         catch (TimeoutException)
         {
-            bytesRead = 0;
-            return false;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"讀取失敗：{ex.Message}");
             bytesRead = 0;
             return false;
         }
@@ -144,8 +219,6 @@ internal static class Program
 
         var accel = ParseAccelerometer(report, length);
         var gyro = ParseGyroscope(report, length);
-
-        Console.WriteLine($"報文ID=0x{reportId:X2}  加速度=({accel.x:F2},{accel.y:F2},{accel.z:F2})  角速度=({gyro.x:F1},{gyro.y:F1},{gyro.z:F1})");
 
         MapMotionToKeys(accel, gyro);
     }
@@ -198,14 +271,12 @@ internal static class Program
         {
             SendKeyPress(jumpKey);
             _lastJump = DateTime.UtcNow;
-            Console.WriteLine("偵測 Jump");
         }
 
         if (DateTime.UtcNow - _lastHit > MotionCooldown && (Math.Abs(gyro.x) > HitThreshold || Math.Abs(gyro.y) > HitThreshold || Math.Abs(gyro.z) > HitThreshold))
         {
             SendKeyPress(hitKey);
             _lastHit = DateTime.UtcNow;
-            Console.WriteLine("偵測 Hit");
         }
 
         var moveRight = accel.x > MoveThreshold;
@@ -266,13 +337,27 @@ internal static class Program
                 ki = new KEYBDINPUT
                 {
                     wVk = key,
-                    dwFlags = keyDown ? 0u : KEYEVENTF.KEYUP,
+                    dwFlags = keyDown ? 0u : (uint)KEYEVENTF.KEYUP,
                     dwExtraInfo = GetMessageExtraInfo()
                 }
             }
         };
 
         SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+    }
+
+    private static void ShowStatusBalloon(string title = "Switch Motion Bridge", string text = "運行中，右鍵選單可退出。", ToolTipIcon icon = ToolTipIcon.Info)
+    {
+        if (_notifyIcon is null)
+        {
+            return;
+        }
+
+        _notifyIcon.BalloonTipTitle = title;
+        _notifyIcon.BalloonTipText = text;
+        _notifyIcon.BalloonTipIcon = icon;
+        _notifyIcon.ShowBalloonTip(2000);
+        _notifyIcon.Text = text.Length <= 63 ? text : text.Substring(0, 63);
     }
 
     [DllImport("user32.dll")]
