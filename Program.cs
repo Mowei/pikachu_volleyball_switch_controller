@@ -127,20 +127,19 @@ internal static class Program
         while (!cancellationToken.IsCancellationRequested)
         {
             var devices = GetConnectedSwitchControllers();
-            var count = devices.Length;
-            if (count == 0)
+            if (devices.Length == 0)
             {
-                UpdateTrayStatus(ConnectionState.Disconnected, "未找到控制器");
+                UpdateTrayStatus(ConnectionState.Disconnected, "左/右搖桿皆未連線");
                 Thread.Sleep(5000);
                 continue;
             }
 
-            var state = count >= 2 ? ConnectionState.DualConnected : ConnectionState.SingleConnected;
-            UpdateTrayStatus(state, count >= 2 ? "已連接 2 支控制器" : "已連接 1 支控制器");
+            var (state, statusText) = GetConnectionStatus(devices);
+            UpdateTrayStatus(state, statusText);
 
             try
             {
-                var device = devices[0];
+                var (productId, device) = devices[0];
                 using var stream = device.Open();
                 stream.ReadTimeout = 2000;
                 EnableImu(stream, device);
@@ -172,20 +171,64 @@ internal static class Program
     private static HidDevice? FindSwitchController()
     {
         var devices = GetConnectedSwitchControllers();
-        return devices.Length > 0 ? devices[0] : null;
+        return devices.Length > 0 ? devices[0].device : null;
     }
 
-    private static HidDevice[] GetConnectedSwitchControllers()
+    private static (ushort productId, HidDevice device)[] GetConnectedSwitchControllers()
     {
         var list = DeviceList.Local;
-        var connected = new List<HidDevice>();
+        var connected = new List<(ushort productId, HidDevice device)>();
 
         foreach (var productId in SupportedProductIds)
         {
-            connected.AddRange(list.GetHidDevices(NintendoVendorId, productId));
+            foreach (var device in list.GetHidDevices(NintendoVendorId, productId))
+            {
+                connected.Add((productId, device));
+            }
         }
 
         return connected.ToArray();
+    }
+
+    private static (ConnectionState state, string statusText) GetConnectionStatus((ushort productId, HidDevice device)[] devices)
+    {
+        var leftConnected = false;
+        var rightConnected = false;
+        var proConnected = false;
+
+        foreach (var (productId, _) in devices)
+        {
+            if (productId == 0x2006)
+            {
+                leftConnected = true;
+            }
+            else if (productId == 0x2007)
+            {
+                rightConnected = true;
+            }
+            else if (productId == 0x2009 || productId == 0x2017)
+            {
+                leftConnected = true;
+                rightConnected = true;
+                proConnected = true;
+            }
+        }
+
+        if (!leftConnected && !rightConnected)
+        {
+            return (ConnectionState.Disconnected, "左/右搖桿皆未連線");
+        }
+
+        if (leftConnected && rightConnected)
+        {
+            return proConnected
+                ? (ConnectionState.DualConnected, "已連接 Pro 控制器")
+                : (ConnectionState.DualConnected, "已連接左及右搖桿");
+        }
+
+        return leftConnected
+            ? (ConnectionState.SingleConnected, "右搖桿未連線")
+            : (ConnectionState.SingleConnected, "左搖桿未連線");
     }
 
     private static void EnableImu(HidStream stream, HidDevice device)
