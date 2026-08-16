@@ -317,14 +317,56 @@ internal static class Program
             return;
         }
 
-        LogDebug($"Controller 0x{productId:X4} report 0x{reportId:X2} length={length}");
+        var hex = string.Join(" ", report.Take(length).Select(b => b.ToString("X2")));
+        LogDebug($"Controller 0x{productId:X4} report 0x{reportId:X2} length={length} bytes={hex}");
 
+        var buttons = ParseButtons(report, length);
         var accel = ParseAccelerometer(report, length);
         var gyro = ParseGyroscope(report, length);
 
-        LogDebug($"Controller 0x{productId:X4} Accel=({accel.x:F3},{accel.y:F3},{accel.z:F3}) Gyro=({gyro.x:F1},{gyro.y:F1},{gyro.z:F1})");
+        LogDebug($"Controller 0x{productId:X4} Buttons=0x{buttons:X4} Accel=({accel.x:F3},{accel.y:F3},{accel.z:F3}) Gyro=({gyro.x:F1},{gyro.y:F1},{gyro.z:F1})");
 
+        MapButtonsToKeys(buttons);
         MapMotionToKeys(accel, gyro);
+    }
+
+    private static ushort ParseButtons(byte[] data, int length)
+    {
+        if (length < 5)
+        {
+            return 0;
+        }
+
+        return (ushort)(data[3] | (data[4] << 8));
+    }
+
+    private static void MapButtonsToKeys(ushort buttons)
+    {
+        var pressed = new Dictionary<ushort, VirtualKeyShort>
+        {
+            [0x0001] = VirtualKeyShort.KEY_A,
+            [0x0002] = VirtualKeyShort.KEY_B,
+            [0x0004] = VirtualKeyShort.KEY_X,
+            [0x0008] = VirtualKeyShort.KEY_Y,
+            [0x0010] = VirtualKeyShort.LSHIFT,
+            [0x0020] = VirtualKeyShort.LCONTROL,
+            [0x0040] = VirtualKeyShort.SPACE,
+            [0x0080] = VirtualKeyShort.LEFT,
+            [0x0100] = VirtualKeyShort.UP,
+            [0x0200] = VirtualKeyShort.RIGHT,
+            [0x0400] = VirtualKeyShort.DOWN,
+            [0x0800] = VirtualKeyShort.KEY_Z,
+            [0x1000] = VirtualKeyShort.KEY_C,
+            [0x2000] = VirtualKeyShort.KEY_V,
+            [0x4000] = VirtualKeyShort.KEY_U,
+            [0x8000] = VirtualKeyShort.KEY_I,
+        };
+
+        foreach (var (bit, key) in pressed)
+        {
+            var isDown = (buttons & bit) != 0;
+            UpdateVirtualKeyState(key, isDown, "button");
+        }
     }
 
     private static (double x, double y, double z) ParseAccelerometer(byte[] data, int length)
@@ -361,6 +403,26 @@ internal static class Program
         }
 
         return (short)(data[offset] | (data[offset + 1] << 8));
+    }
+
+    private static readonly HashSet<VirtualKeyShort> _heldKeys = new();
+
+    private static void UpdateVirtualKeyState(VirtualKeyShort key, bool isDown, string source)
+    {
+        if (isDown && !_heldKeys.Contains(key))
+        {
+            SendKey(key, true);
+            _heldKeys.Add(key);
+            LogDebug($"{source} key down: {key}");
+            return;
+        }
+
+        if (!isDown && _heldKeys.Contains(key))
+        {
+            SendKey(key, false);
+            _heldKeys.Remove(key);
+            LogDebug($"{source} key up: {key}");
+        }
     }
 
     private static void MapMotionToKeys((double x, double y, double z) accel, (double x, double y, double z) gyro)
@@ -435,29 +497,9 @@ internal static class Program
 
     private static void SendKey(VirtualKeyShort key, bool keyDown)
     {
-        var scanCode = MapVirtualKey((uint)key, (uint)MapVirtualKeyMapType.MAPVK_VK_TO_VSC);
-        var flags = keyDown
-            ? (scanCode == 0 ? 0u : (uint)KEYEVENTF.SCANCODE)
-            : (scanCode == 0 ? (uint)KEYEVENTF.KEYUP : (uint)(KEYEVENTF.KEYUP | KEYEVENTF.SCANCODE));
-
-        LogDebug($"SendKey key={key} down={keyDown} scan={scanCode} flags={flags:X}");
-
-        var input = new INPUT
-        {
-            type = 1,
-            U = new InputUnion
-            {
-                ki = new KEYBDINPUT
-                {
-                    wVk = 0,
-                    wScan = (ushort)scanCode,
-                    dwFlags = flags,
-                    dwExtraInfo = GetMessageExtraInfo()
-                }
-            }
-        };
-
-        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+        var flags = keyDown ? 0u : (uint)KEYEVENTF.KEYUP;
+        LogDebug($"SendKey key={key} down={keyDown} vk={((ushort)key):X4} flags={flags:X}");
+        keybd_event((byte)key, 0, flags, UIntPtr.Zero);
     }
 
     private static void UpdateTrayStatus(ConnectionState state, string text)
@@ -515,13 +557,7 @@ internal static class Program
     }
 
     [DllImport("user32.dll")]
-    private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetMessageExtraInfo();
-
-    [DllImport("user32.dll")]
-    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
     private enum KEYEVENTF : uint
     {
@@ -529,18 +565,27 @@ internal static class Program
         SCANCODE = 0x0008
     }
 
-    private enum MapVirtualKeyMapType : uint
-    {
-        MAPVK_VK_TO_VSC = 0x00
-    }
-
     private enum VirtualKeyShort : short
     {
+        KEY_A = 0x41,
+        KEY_B = 0x42,
+        KEY_C = 0x43,
         KEY_D = 0x44,
         KEY_G = 0x47,
+        KEY_I = 0x49,
         KEY_R = 0x52,
+        KEY_U = 0x55,
         KEY_V = 0x56,
+        KEY_X = 0x58,
+        KEY_Y = 0x59,
         KEY_Z = 0x5A,
+        LSHIFT = 0xA0,
+        LCONTROL = 0xA2,
+        SPACE = 0x20,
+        LEFT = 0x25,
+        UP = 0x26,
+        RIGHT = 0x27,
+        DOWN = 0x28,
         UP_ARROW = 0x26,
         DOWN_ARROW = 0x28,
         LEFT_ARROW = 0x25,

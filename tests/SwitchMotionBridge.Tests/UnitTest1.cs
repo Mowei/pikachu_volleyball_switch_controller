@@ -67,4 +67,22 @@ public class ControllerDetectionTests
         Assert.Equal(0.0, gyroValue.Item2, 3);
         Assert.Equal(0.0, gyroValue.Item3, 3);
     }
+
+    [Fact]
+    public void Joy_con_button_report_should_parse_button_bits()
+    {
+        var sample = new byte[20];
+        sample[0] = 0x30;
+        sample[3] = 0x01;
+        sample[4] = 0x20;
+        sample[5] = 0x00;
+        sample[6] = 0x00;
+        sample[7] = 0x00;
+
+        var method = typeof(Program).GetMethod("ParseButtons", BindingFlags.NonPublic | BindingFlags.Static);
+        var buttons = (ushort)method!.Invoke(null, new object[] { sample, sample.Length })!;
+
+        Assert.Equal((ushort)0x0001, buttons & 0x0001);
+        Assert.Equal((ushort)0x2000, buttons & 0x2000);
+    }
 }
