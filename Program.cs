@@ -9,7 +9,15 @@ using HidSharp;
 internal static class Program
 {
     private static readonly ushort NintendoVendorId = 0x057E;
-    private static readonly ushort[] SupportedProductIds = { 0x2006, 0x2007, 0x2009, 0x2017 };
+    private static readonly ushort[] SupportedProductIds =
+    {
+        0x2006, // Joy-Con (L)
+        0x2007, // Joy-Con (R)
+        0x2009, // Pro Controller
+        0x200E, // Common Bluetooth HID variant seen on Switch controllers
+        0x2017, // Charging Grip / paired combo
+        0x2019  // Common Bluetooth HID variant seen on Switch controllers
+    };
     private static readonly TimeSpan MotionCooldown = TimeSpan.FromMilliseconds(250);
     private static readonly double MoveThreshold = 0.6;
     private static readonly double JumpThreshold = 1.7;
@@ -21,6 +29,7 @@ internal static class Program
     private static bool _leftHeld;
     private static bool _rightHeld;
     private static bool _downHeld;
+    private static readonly bool DebugMode = IsDebugMode(Environment.GetCommandLineArgs());
     private static readonly PlayerMode Mode = DetermineMode();
     private static NotifyIcon? _notifyIcon;
     private static ToolStripMenuItem? _statusMenuItem;
@@ -45,6 +54,25 @@ internal static class Program
         }
 
         return PlayerMode.LeftPlayer;
+    }
+
+    internal static bool IsDebugMode(string[] args)
+    {
+        return args.Any(arg => arg.Equals("debug", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void LogDebug(string message)
+    {
+        Console.WriteLine($"[DEBUG] {message}");
+        if (!DebugMode)
+        {
+            return;
+        }
+
+        var logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SwitchMotionBridge");
+        Directory.CreateDirectory(logDirectory);
+        var logPath = Path.Combine(logDirectory, "debug.log");
+        File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {message}{Environment.NewLine}");
     }
 
     [STAThread]
@@ -139,20 +167,33 @@ internal static class Program
 
             try
             {
-                var (productId, device) = devices[0];
-                using var stream = device.Open();
-                stream.ReadTimeout = 2000;
-                EnableImu(stream, device);
+                var streams = new List<(ushort productId, HidStream stream, byte[] buffer)>();
+                foreach (var (productId, device) in devices)
+                {
+                    var stream = device.Open();
+                    stream.ReadTimeout = 2000;
+                    EnableImu(stream, device);
+                    streams.Add((productId, stream, new byte[device.GetMaxInputReportLength()]));
+                }
 
-                var reportBuffer = new byte[device.GetMaxInputReportLength()];
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    if (!TryReadReport(stream, reportBuffer, out var bytesRead))
+                    var anyData = false;
+                    foreach (var (productId, stream, buffer) in streams)
                     {
-                        continue;
+                        if (!TryReadReport(stream, buffer, out var bytesRead))
+                        {
+                            continue;
+                        }
+
+                        anyData = true;
+                        ProcessReport(buffer, bytesRead, productId);
                     }
 
-                    ProcessReport(reportBuffer, bytesRead);
+                    if (!anyData)
+                    {
+                        Thread.Sleep(10);
+                    }
                 }
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
@@ -192,11 +233,16 @@ internal static class Program
 
     private static (ConnectionState state, string statusText) GetConnectionStatus((ushort productId, HidDevice device)[] devices)
     {
+        return GetConnectionStatusForProductIds(devices.Select(x => x.productId));
+    }
+
+    internal static (ConnectionState state, string statusText) GetConnectionStatusForProductIds(IEnumerable<ushort> productIds)
+    {
         var leftConnected = false;
         var rightConnected = false;
         var proConnected = false;
 
-        foreach (var (productId, _) in devices)
+        foreach (var productId in productIds)
         {
             if (productId == 0x2006)
             {
@@ -206,7 +252,7 @@ internal static class Program
             {
                 rightConnected = true;
             }
-            else if (productId == 0x2009 || productId == 0x2017)
+            else if (productId == 0x2009 || productId == 0x200E || productId == 0x2017 || productId == 0x2019)
             {
                 leftConnected = true;
                 rightConnected = true;
@@ -258,7 +304,7 @@ internal static class Program
         }
     }
 
-    private static void ProcessReport(byte[] report, int length)
+    private static void ProcessReport(byte[] report, int length, ushort productId = 0)
     {
         if (length < 1)
         {
@@ -271,35 +317,39 @@ internal static class Program
             return;
         }
 
+        LogDebug($"Controller 0x{productId:X4} report 0x{reportId:X2} length={length}");
+
         var accel = ParseAccelerometer(report, length);
         var gyro = ParseGyroscope(report, length);
+
+        LogDebug($"Controller 0x{productId:X4} Accel=({accel.x:F3},{accel.y:F3},{accel.z:F3}) Gyro=({gyro.x:F1},{gyro.y:F1},{gyro.z:F1})");
 
         MapMotionToKeys(accel, gyro);
     }
 
     private static (double x, double y, double z) ParseAccelerometer(byte[] data, int length)
     {
-        if (length < 24)
+        if (length < 9)
         {
             return (0.0, 0.0, 0.0);
         }
 
-        var x = ReadInt16(data, 13) / 2048.0;
-        var y = ReadInt16(data, 15) / 2048.0;
-        var z = ReadInt16(data, 17) / 2048.0;
+        var x = ReadInt16(data, 3) / 2048.0;
+        var y = ReadInt16(data, 5) / 2048.0;
+        var z = ReadInt16(data, 7) / 2048.0;
         return (x, y, z);
     }
 
     private static (double x, double y, double z) ParseGyroscope(byte[] data, int length)
     {
-        if (length < 28)
+        if (length < 15)
         {
             return (0.0, 0.0, 0.0);
         }
 
-        var x = ReadInt16(data, 19) / 16.0;
-        var y = ReadInt16(data, 21) / 16.0;
-        var z = ReadInt16(data, 23) / 16.0;
+        var x = ReadInt16(data, 9) / 16.0;
+        var y = ReadInt16(data, 11) / 16.0;
+        var z = ReadInt16(data, 13) / 16.0;
         return (x, y, z);
     }
 
@@ -323,12 +373,14 @@ internal static class Program
 
         if (DateTime.UtcNow - _lastJump > MotionCooldown && accel.y > JumpThreshold)
         {
+            LogDebug($"Jump trigger: accel.y={accel.y:F3} threshold={JumpThreshold}");
             SendKeyPress(jumpKey);
             _lastJump = DateTime.UtcNow;
         }
 
         if (DateTime.UtcNow - _lastHit > MotionCooldown && (Math.Abs(gyro.x) > HitThreshold || Math.Abs(gyro.y) > HitThreshold || Math.Abs(gyro.z) > HitThreshold))
         {
+            LogDebug($"Hit trigger: gyro=({gyro.x:F1},{gyro.y:F1},{gyro.z:F1})");
             SendKeyPress(hitKey);
             _lastHit = DateTime.UtcNow;
         }
@@ -383,6 +435,13 @@ internal static class Program
 
     private static void SendKey(VirtualKeyShort key, bool keyDown)
     {
+        var scanCode = MapVirtualKey((uint)key, (uint)MapVirtualKeyMapType.MAPVK_VK_TO_VSC);
+        var flags = keyDown
+            ? (scanCode == 0 ? 0u : (uint)KEYEVENTF.SCANCODE)
+            : (scanCode == 0 ? (uint)KEYEVENTF.KEYUP : (uint)(KEYEVENTF.KEYUP | KEYEVENTF.SCANCODE));
+
+        LogDebug($"SendKey key={key} down={keyDown} scan={scanCode} flags={flags:X}");
+
         var input = new INPUT
         {
             type = 1,
@@ -390,8 +449,9 @@ internal static class Program
             {
                 ki = new KEYBDINPUT
                 {
-                    wVk = key,
-                    dwFlags = keyDown ? 0u : (uint)KEYEVENTF.KEYUP,
+                    wVk = 0,
+                    wScan = (ushort)scanCode,
+                    dwFlags = flags,
                     dwExtraInfo = GetMessageExtraInfo()
                 }
             }
@@ -447,7 +507,7 @@ internal static class Program
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr hObject);
 
-    private enum ConnectionState
+    internal enum ConnectionState
     {
         Disconnected,
         SingleConnected,
@@ -460,9 +520,18 @@ internal static class Program
     [DllImport("user32.dll")]
     private static extern IntPtr GetMessageExtraInfo();
 
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
     private enum KEYEVENTF : uint
     {
-        KEYUP = 0x0002
+        KEYUP = 0x0002,
+        SCANCODE = 0x0008
+    }
+
+    private enum MapVirtualKeyMapType : uint
+    {
+        MAPVK_VK_TO_VSC = 0x00
     }
 
     private enum VirtualKeyShort : short
