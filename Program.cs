@@ -15,6 +15,7 @@ internal static class Program
     private static readonly double JumpThreshold = 1.7;
     private static readonly double DownThreshold = -1.0;
     private static readonly double HitThreshold = 1800.0;
+    private static bool MotionKeyMappingEnabled = false;
 
     private static DateTime _lastJump = DateTime.MinValue;
     private static DateTime _lastHit = DateTime.MinValue;
@@ -274,7 +275,15 @@ internal static class Program
         var accel = ParseAccelerometer(report, length);
         var gyro = ParseGyroscope(report, length);
 
-        MapMotionToKeys(accel, gyro);
+        Console.WriteLine(
+            $"Report: 0x{reportId:X2} | " +
+            $"Accel X: {accel.x:F3}, Y: {accel.y:F3}, Z: {accel.z:F3} | " +
+            $"Gyro X: {gyro.x:F2}, Y: {gyro.y:F2}, Z: {gyro.z:F2}");
+
+        if (MotionKeyMappingEnabled)
+        {
+            MapMotionToKeys(accel, gyro);
+        }
     }
 
     private static (double x, double y, double z) ParseAccelerometer(byte[] data, int length)
@@ -339,12 +348,22 @@ internal static class Program
 
         if (moveRight && !_rightHeld)
         {
+            if (_leftHeld)
+            {
+                SendKey(leftKey, false);
+            }
+
             SendKey(rightKey, true);
             _rightHeld = true;
             _leftHeld = false;
         }
         else if (moveLeft && !_leftHeld)
         {
+            if (_rightHeld)
+            {
+                SendKey(rightKey, false);
+            }
+
             SendKey(leftKey, true);
             _leftHeld = true;
             _rightHeld = false;
