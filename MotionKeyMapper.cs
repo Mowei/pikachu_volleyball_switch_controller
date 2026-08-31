@@ -44,9 +44,9 @@ internal sealed class MotionKeyMapper
             _lastHit = DateTime.UtcNow;
         }
 
-        var moveRight = accel.x > AppConfig.MoveThreshold;
-        var moveLeft = accel.x < -AppConfig.MoveThreshold;
-        var moveDown = accel.y < AppConfig.DownThreshold;
+        var moveRight = _rightHeld ? accel.x > AppConfig.MoveReleaseThreshold : accel.x > AppConfig.MoveThreshold;
+        var moveLeft = _leftHeld ? accel.x < -AppConfig.MoveReleaseThreshold : accel.x < -AppConfig.MoveThreshold;
+        var moveDown = _downHeld ? accel.y < AppConfig.DownReleaseThreshold : accel.y < AppConfig.DownThreshold;
 
         // 左右方向鍵採用互斥按住邏輯：切換方向前先鬆開另一邊
         if (moveRight && !_rightHeld)
