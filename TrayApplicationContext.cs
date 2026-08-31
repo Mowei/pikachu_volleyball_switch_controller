@@ -8,9 +8,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     public TrayApplicationContext(PlayerMode mode)
     {
-        _trayIconManager = new TrayIconManager(Exit_Click);
+        _trayIconManager = new TrayIconManager(Exit_Click, Calibrate_Click);
         _controllerWorker = new ControllerWorker(mode, _trayIconManager.UpdateStatus);
         _controllerWorker.Start();
+    }
+
+    // 點選選單中的「開始校正」時觸發一次體感零點校正
+    private void Calibrate_Click(object? sender, EventArgs e)
+    {
+        _controllerWorker.StartCalibration();
     }
 
     // 點選選單中的「Exit」時結束應用程式

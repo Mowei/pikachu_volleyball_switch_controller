@@ -7,6 +7,7 @@ namespace SwitchMotionBridge;
 internal sealed class ControllerWorker
 {
     private readonly MotionKeyMapper _keyMapper;
+    private readonly MotionCalibrator _calibrator = new();
     private readonly Action<ConnectionState, string> _onStatusChanged; // 連線狀態變更時的回調（更新系統匣圖示）
     private CancellationTokenSource? _cts;
     private Thread? _workerThread;
@@ -15,6 +16,12 @@ internal sealed class ControllerWorker
     {
         _keyMapper = new MotionKeyMapper(mode);
         _onStatusChanged = onStatusChanged;
+    }
+
+    // 觸發一次新的體感零點校正
+    public void StartCalibration()
+    {
+        _calibrator.StartCalibration();
     }
 
     // 建立並啟動背景執行緒
@@ -196,6 +203,7 @@ internal sealed class ControllerWorker
 
         var accel = MotionParser.ParseAccelerometer(report, length);
         var gyro = MotionParser.ParseGyroscope(report, length);
+        (accel, gyro) = _calibrator.Apply(accel, gyro);
 
         Console.WriteLine(
             $"Report: 0x{reportId:X2} | " +

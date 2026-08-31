@@ -11,7 +11,7 @@ internal sealed class TrayIconManager : IDisposable
     private readonly Icon _yellowIcon;
     private readonly Icon _greenIcon;
 
-    public TrayIconManager(EventHandler onExitClick)
+    public TrayIconManager(EventHandler onExitClick, EventHandler onCalibrateClick)
     {
         // 預先產生三種顏色圖示，對應三種連線狀態
         _redIcon = CreateColorIcon(Color.Red);
@@ -30,10 +30,14 @@ internal sealed class TrayIconManager : IDisposable
         };
         motionKeyMappingMenuItem.CheckedChanged += (_, _) => AppConfig.MotionKeyMappingEnabled = motionKeyMappingMenuItem.Checked;
 
+        var calibrateMenuItem = new ToolStripMenuItem("開始校正");
+        calibrateMenuItem.Click += onCalibrateClick;
+
         var contextMenu = new ContextMenuStrip();
         contextMenu.Items.Add(_statusMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add(motionKeyMappingMenuItem);
+        contextMenu.Items.Add(calibrateMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add("Exit", null, onExitClick);
 
