@@ -23,8 +23,17 @@ internal sealed class TrayIconManager : IDisposable
             Enabled = false // 僅作為顯示用途，不可點擊
         };
 
+        var motionKeyMappingMenuItem = new ToolStripMenuItem("體感轉按鍵")
+        {
+            CheckOnClick = true,
+            Checked = AppConfig.MotionKeyMappingEnabled
+        };
+        motionKeyMappingMenuItem.CheckedChanged += (_, _) => AppConfig.MotionKeyMappingEnabled = motionKeyMappingMenuItem.Checked;
+
         var contextMenu = new ContextMenuStrip();
         contextMenu.Items.Add(_statusMenuItem);
+        contextMenu.Items.Add(new ToolStripSeparator());
+        contextMenu.Items.Add(motionKeyMappingMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add("Exit", null, onExitClick);
 
