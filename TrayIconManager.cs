@@ -11,7 +11,7 @@ internal sealed class TrayIconManager : IDisposable
     private readonly Icon _yellowIcon;
     private readonly Icon _greenIcon;
 
-    public TrayIconManager(EventHandler onExitClick, EventHandler onCalibrateClick, EventHandler onEditKeyBindingsClick)
+    public TrayIconManager(EventHandler onExitClick, EventHandler onCalibrateClick, EventHandler onEditKeyBindingsClick, EventHandler onEditMotionSettingsClick)
     {
         // 預先產生三種顏色圖示，對應三種連線狀態
         _redIcon = CreateColorIcon(Color.Red);
@@ -30,18 +30,30 @@ internal sealed class TrayIconManager : IDisposable
         };
         motionKeyMappingMenuItem.CheckedChanged += (_, _) => AppConfig.MotionKeyMappingEnabled = motionKeyMappingMenuItem.Checked;
 
+        var verboseLoggingMenuItem = new ToolStripMenuItem("詳細記錄")
+        {
+            CheckOnClick = true,
+            Checked = AppConfig.VerboseLogging
+        };
+        verboseLoggingMenuItem.CheckedChanged += (_, _) => AppConfig.VerboseLogging = verboseLoggingMenuItem.Checked;
+
         var calibrateMenuItem = new ToolStripMenuItem("開始校正");
         calibrateMenuItem.Click += onCalibrateClick;
 
         var editKeyBindingsMenuItem = new ToolStripMenuItem("編輯按鍵設定");
         editKeyBindingsMenuItem.Click += onEditKeyBindingsClick;
 
+        var editMotionSettingsMenuItem = new ToolStripMenuItem("編輯體感參數設定");
+        editMotionSettingsMenuItem.Click += onEditMotionSettingsClick;
+
         var contextMenu = new ContextMenuStrip();
         contextMenu.Items.Add(_statusMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add(motionKeyMappingMenuItem);
+        contextMenu.Items.Add(verboseLoggingMenuItem);
         contextMenu.Items.Add(calibrateMenuItem);
         contextMenu.Items.Add(editKeyBindingsMenuItem);
+        contextMenu.Items.Add(editMotionSettingsMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add("Exit", null, onExitClick);
 

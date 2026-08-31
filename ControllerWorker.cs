@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using HidSharp;
 
@@ -9,8 +10,10 @@ internal sealed class ControllerWorker
     private readonly MotionKeyMapper _keyMapper;
     private readonly MotionCalibrator _calibrator = new();
     private readonly Action<ConnectionState, string> _onStatusChanged; // 連線狀態變更時的回調（更新系統匣圖示）
+    private readonly ConcurrentDictionary<string, Thread> _deviceReaders = new(); // 依裝置路徑追蹤各自的讀取執行緒，讓左右搖桿可同時讀取
+    private readonly object _processLock = new(); // 多裝置可能同時回報動作，序列化按鍵狀態機的存取
     private CancellationTokenSource? _cts;
-    private Thread? _workerThread;
+    private Thread? _monitorThread;
 
     public ControllerWorker(PlayerMode mode, Action<ConnectionState, string> onStatusChanged)
     {
@@ -24,19 +27,19 @@ internal sealed class ControllerWorker
         _calibrator.StartCalibration();
     }
 
-    // 建立並啟動背景執行緒
+    // 建立並啟動監控執行緒
     public void Start()
     {
         _cts = new CancellationTokenSource();
-        _workerThread = new Thread(() => WorkerLoop(_cts.Token))
+        _monitorThread = new Thread(() => MonitorLoop(_cts.Token))
         {
             IsBackground = true,
-            Name = "SwitchMotionBridgeWorker"
+            Name = "SwitchMotionBridgeMonitor"
         };
-        _workerThread.Start();
+        _monitorThread.Start();
     }
 
-    // 取消並等待執行緒結束
+    // 取消並等待監控執行緒與所有裝置讀取執行緒結束
     public void Stop()
     {
         if (_cts is null)
@@ -45,13 +48,18 @@ internal sealed class ControllerWorker
         }
 
         _cts.Cancel();
-        _workerThread?.Join(1000);
+        _monitorThread?.Join(1000);
+        foreach (var reader in _deviceReaders.Values)
+        {
+            reader.Join(1000);
+        }
+        _deviceReaders.Clear();
         _cts.Dispose();
         _cts = null;
     }
 
-    // 主迴圈：持續偵測控制器、開啟設備並不斷讀取報告，連線中斷時自動重試
-    private void WorkerLoop(CancellationToken cancellationToken)
+    // 監控迴圈：持續偵測已連接的控制器，為每個尚未讀取的裝置各自建立讀取執行緒
+    private void MonitorLoop(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -59,43 +67,68 @@ internal sealed class ControllerWorker
             if (devices.Length == 0)
             {
                 _onStatusChanged(ConnectionState.Disconnected, "左/右搖桿皆未連線");
-                Thread.Sleep(5000);
-                continue;
             }
-
-            var (state, statusText) = GetConnectionStatus(devices);
-            _onStatusChanged(state, statusText);
-
-            try
+            else
             {
-                // 目前只選用第一個偵測到的設備進行讀取
-                var (productId, device) = devices[0];
-                using var stream = device.Open();
-                stream.ReadTimeout = 2000;
-                EnableImu(stream, device);
+                var (state, statusText) = GetConnectionStatus(devices);
+                _onStatusChanged(state, statusText);
 
-                var reportBuffer = new byte[device.GetMaxInputReportLength()];
-                while (!cancellationToken.IsCancellationRequested)
+                foreach (var (_, device) in devices)
                 {
-                    if (!TryReadReport(stream, reportBuffer, out var bytesRead))
-                    {
-                        continue;
-                    }
-
-                    ProcessReport(reportBuffer, bytesRead);
+                    _deviceReaders.AddOrUpdate(
+                        device.DevicePath,
+                        _ => StartDeviceReader(device, cancellationToken),
+                        (_, existingReader) => existingReader.IsAlive ? existingReader : StartDeviceReader(device, cancellationToken));
                 }
             }
-            catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+
+            Thread.Sleep(2000);
+        }
+    }
+
+    // 建立並啟動單一裝置的讀取執行緒
+    private Thread StartDeviceReader(HidDevice device, CancellationToken cancellationToken)
+    {
+        var thread = new Thread(() => DeviceReadLoop(device, cancellationToken))
+        {
+            IsBackground = true,
+            Name = $"SwitchMotionBridgeDevice-{device.DevicePath}"
+        };
+        thread.Start();
+        return thread;
+    }
+
+    // 單一裝置的讀取迴圈：開啟串流、啟用 IMU 並持續讀取報告，裝置中斷或取消時結束
+    private void DeviceReadLoop(HidDevice device, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var stream = device.Open();
+            stream.ReadTimeout = 2000;
+            EnableImu(stream, device);
+
+            var reportBuffer = new byte[device.GetMaxInputReportLength()];
+            while (!cancellationToken.IsCancellationRequested)
             {
-                // 錯誤碼 1223：使用者取消了操作（例如拔除設備）
-                _onStatusChanged(ConnectionState.Disconnected, "存取控制器遭到取消");
-                Thread.Sleep(5000);
+                if (!TryReadReport(stream, reportBuffer, out var bytesRead))
+                {
+                    continue;
+                }
+
+                ProcessReport(reportBuffer, bytesRead);
             }
-            catch (Exception ex)
-            {
-                _onStatusChanged(ConnectionState.Disconnected, ex.Message);
-                Thread.Sleep(5000);
-            }
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // 錯誤碼 1223：使用者取消了操作（例如拔除設備），交由監控迴圈於下次偵測時重建執行緒
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"裝置讀取中斷（{device.DevicePath}）：{ex.Message}");
+        }
+        finally
+        {
+            _deviceReaders.TryRemove(device.DevicePath, out _);
         }
     }
 
@@ -187,7 +220,7 @@ internal sealed class ControllerWorker
         }
     }
 
-    // 解析報告內容，列印除錯訊息，並在啟用體感轉按鍵時進一步處理
+    // 解析報告內容，於啟用詳細記錄時列印除錯訊息，並在啟用體感轉按鍵時進一步處理
     private void ProcessReport(byte[] report, int length)
     {
         if (length < 1)
@@ -203,16 +236,24 @@ internal sealed class ControllerWorker
 
         var accel = MotionParser.ParseAccelerometer(report, length);
         var gyro = MotionParser.ParseGyroscope(report, length);
-        (accel, gyro) = _calibrator.Apply(accel, gyro);
 
-        Console.WriteLine(
-            $"Report: 0x{reportId:X2} | " +
-            $"Accel X: {accel.x:F3}, Y: {accel.y:F3}, Z: {accel.z:F3} | " +
-            $"Gyro X: {gyro.x:F2}, Y: {gyro.y:F2}, Z: {gyro.z:F2}");
-
-        if (AppConfig.MotionKeyMappingEnabled)
+        // 多裝置可能同時解析並更新按鍵狀態機，需序列化避免資料競爭
+        lock (_processLock)
         {
-            _keyMapper.MapMotionToKeys(accel, gyro);
+            (accel, gyro) = _calibrator.Apply(accel, gyro);
+
+            if (AppConfig.VerboseLogging)
+            {
+                Console.WriteLine(
+                    $"Report: 0x{reportId:X2} | " +
+                    $"Accel X: {accel.x:F3}, Y: {accel.y:F3}, Z: {accel.z:F3} | " +
+                    $"Gyro X: {gyro.x:F2}, Y: {gyro.y:F2}, Z: {gyro.z:F2}");
+            }
+
+            if (AppConfig.MotionKeyMappingEnabled)
+            {
+                _keyMapper.MapMotionToKeys(accel, gyro);
+            }
         }
     }
 }

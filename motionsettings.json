@@ -1,0 +1,9 @@
+{
+  "MoveThreshold": 0.6,
+  "MoveReleaseThreshold": 0.36,
+  "JumpThreshold": 1.7,
+  "DownThreshold": -1.0,
+  "DownReleaseThreshold": -0.6,
+  "HitThreshold": 1800.0,
+  "MotionCooldownMs": 250
+}
