@@ -1,0 +1,16 @@
+{
+  "SinglePlayer": {
+    "Jump": "UP_ARROW",
+    "Down": "DOWN_ARROW",
+    "Left": "LEFT_ARROW",
+    "Right": "RIGHT_ARROW",
+    "Hit": "RETURN"
+  },
+  "LeftPlayer": {
+    "Jump": "KEY_R",
+    "Down": "KEY_V",
+    "Left": "KEY_D",
+    "Right": "KEY_G",
+    "Hit": "KEY_Z"
+  }
+}
