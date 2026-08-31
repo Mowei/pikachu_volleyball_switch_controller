@@ -2,7 +2,6 @@ using System.Runtime.InteropServices;
 
 namespace SwitchMotionBridge;
 
-// 虛擬鍵盤代碼（Windows Virtual-Key Codes）
 // 虛擬鍵盤代碼（Windows Virtual-Key Codes），完整定義常用鍵位供 MotionKeyMapper 綁定
 internal enum VirtualKeyShort : short
 {
@@ -161,8 +160,11 @@ internal static class KeyboardSender
 {
     private enum KEYEVENTF : uint
     {
-        KEYUP = 0x0002 // 標示為鍵盤抬起事件
+        KEYUP = 0x0002, // 標示為鍵盤抬起事件
+        SCANCODE = 0x0008 // 以硬體掃描碼送出，避免被輸入法（如注音）攔截轉換
     }
+
+    private const uint MAPVK_VK_TO_VSC = 0;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
@@ -194,6 +196,9 @@ internal static class KeyboardSender
     [DllImport("user32.dll")]
     private static extern IntPtr GetMessageExtraInfo();
 
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
     // 模擬快速按一下鍵盤（按下後立即抬起）
     public static void SendKeyPress(VirtualKeyShort key)
     {
@@ -204,6 +209,10 @@ internal static class KeyboardSender
     // 模擬鍵盤按下或抬起事件，可用於長按不放的場合
     public static void SendKey(VirtualKeyShort key, bool keyDown)
     {
+        // 改用掃描碼送出，讓遊戲/輸入法將其視為實體按鍵，而非被注音等 IME 轉換
+        var scanCode = (ushort)MapVirtualKey((uint)key, MAPVK_VK_TO_VSC);
+        var flags = (uint)KEYEVENTF.SCANCODE | (keyDown ? 0u : (uint)KEYEVENTF.KEYUP);
+
         var input = new INPUT
         {
             type = 1,
@@ -211,8 +220,9 @@ internal static class KeyboardSender
             {
                 ki = new KEYBDINPUT
                 {
-                    wVk = key,
-                    dwFlags = keyDown ? 0u : (uint)KEYEVENTF.KEYUP,
+                    wVk = 0,
+                    wScan = scanCode,
+                    dwFlags = flags,
                     dwExtraInfo = GetMessageExtraInfo()
                 }
             }
