@@ -1,12 +1,16 @@
 {
+  // 按鍵名稱需對應 KeyboardSender.cs 裡 VirtualKeyShort 列舉的成員名稱（例如 KEY_A、SPACE、F1、OEM_1 等）
+  // 修改後需重新啟動程式才會套用新的按鍵綁定
   "SinglePlayer": {
-    "Jump": "UP_ARROW",
-    "Down": "DOWN_ARROW",
-    "Left": "LEFT_ARROW",
-    "Right": "RIGHT_ARROW",
-    "Hit": "RETURN"
+    // 單人模式：命令列參數帶入 single 時使用（例如 dotnet run -- single）
+    "Jump": "UP_ARROW", // 手把向上加速度超過 JumpThreshold 時觸發
+    "Down": "DOWN_ARROW", // 手把向下加速度低於 DownThreshold 時按住
+    "Left": "LEFT_ARROW", // 手把向左傾斜超過 MoveThreshold 時按住
+    "Right": "RIGHT_ARROW", // 手把向右傾斜超過 MoveThreshold 時按住
+    "Hit": "RETURN" // 任一軸向陀螺儀角速度超過 HitThreshold 時觸發（揮擊動作）
   },
   "LeftPlayer": {
+    // 雙人模式的左搖桿玩家：未帶命令列參數時的預設模式
     "Jump": "KEY_R",
     "Down": "KEY_V",
     "Left": "KEY_D",

@@ -40,6 +40,7 @@ internal static class KeyBindings
     public static readonly string FilePath = Path.Combine(AppContext.BaseDirectory, "keybindings.json");
 
     private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions DeserializerOptions = new() { ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }; // 允許設定檔內含 // 說明註解
 
     // 若設定檔不存在，寫入一份包含預設按鍵綁定的檔案
     public static void EnsureFileExists()
@@ -63,7 +64,7 @@ internal static class KeyBindings
         try
         {
             var json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<KeyBindingsData>(json) ?? new KeyBindingsData();
+            return JsonSerializer.Deserialize<KeyBindingsData>(json, DeserializerOptions) ?? new KeyBindingsData();
         }
         catch (Exception ex)
         {

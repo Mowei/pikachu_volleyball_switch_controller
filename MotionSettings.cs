@@ -20,6 +20,7 @@ internal static class MotionSettings
     public static readonly string FilePath = Path.Combine(AppContext.BaseDirectory, "motionsettings.json");
 
     private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions DeserializerOptions = new() { ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }; // 允許設定檔內含 // 說明註解
 
     // 若設定檔不存在，寫入一份包含預設參數的檔案
     public static void EnsureFileExists()
@@ -43,7 +44,7 @@ internal static class MotionSettings
         try
         {
             var json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<MotionSettingsData>(json) ?? new MotionSettingsData();
+            return JsonSerializer.Deserialize<MotionSettingsData>(json, DeserializerOptions) ?? new MotionSettingsData();
         }
         catch (Exception ex)
         {
