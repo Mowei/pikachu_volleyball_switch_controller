@@ -1,6 +1,6 @@
 # Switch 手把體感對戰中介程式
 
-這是一個用 C# 建立的 Switch 手把體感轉鍵盤中介程式範例，適合用於《皮卡丘打排球》之類的雙人體感對戰遊戲。
+這是一個用 C# 建立的 Switch 手把體感轉鍵盤中介程式範例。
 
 ## 主要功能
 
@@ -27,6 +27,9 @@ dotnet run
 - 支援 `ProductID` 包含 Joy-Con L / R、Pro Controller
 
 3. 讓程式讀到 Controller 並開始輸出按鍵
+
+	- `Program.cs` 的 `MotionKeyMappingEnabled` 預設為 `false`，此時只會輸出 IMU 數值供除錯。
+	- 確認體感方向與閾值後，改為 `true` 即可啟用鍵盤按鍵輸出。
 
 4. 程式會最小化到系統列，右鍵點選圖示可查看連線狀態與結束選項
 
