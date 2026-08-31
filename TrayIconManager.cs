@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace SwitchMotionBridge;
 
-// Owns the tray notify icon, status menu item, and the red/yellow/green connection icons.
+// 管理系統匣通知圖示、狀態選單項，以及紅/黃/綠三種連線狀態圖示。
 internal sealed class TrayIconManager : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
@@ -13,13 +13,14 @@ internal sealed class TrayIconManager : IDisposable
 
     public TrayIconManager(EventHandler onExitClick)
     {
+        // 預先產生三種顏色圖示，對應三種連線狀態
         _redIcon = CreateColorIcon(Color.Red);
         _yellowIcon = CreateColorIcon(Color.Yellow);
         _greenIcon = CreateColorIcon(Color.LimeGreen);
 
         _statusMenuItem = new ToolStripMenuItem("狀態：未連線")
         {
-            Enabled = false
+            Enabled = false // 僅作為顯示用途，不可點擊
         };
 
         var contextMenu = new ContextMenuStrip();
@@ -36,6 +37,7 @@ internal sealed class TrayIconManager : IDisposable
         };
     }
 
+    // 根據連線狀態更新圖示顏色、鼠標悬停文字與選單狀態文字
     public void UpdateStatus(ConnectionState state, string text)
     {
         _notifyIcon.Icon = state switch
@@ -46,10 +48,11 @@ internal sealed class TrayIconManager : IDisposable
             _ => _redIcon
         };
 
-        _notifyIcon.Text = text.Length <= 63 ? text : text.Substring(0, 63);
+        _notifyIcon.Text = text.Length <= 63 ? text : text.Substring(0, 63); // NotifyIcon.Text 限制最多 63 字元
         _statusMenuItem.Text = $"狀態：{text}";
     }
 
+    // 繪製一個 16x16 圓形圖標作為系統匣狀態指示
     private static Icon CreateColorIcon(Color color)
     {
         using var bitmap = new Bitmap(16, 16);
@@ -68,6 +71,7 @@ internal sealed class TrayIconManager : IDisposable
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr hObject);
 
+    // 釋放通知圖示與所有自建的圖標資源
     public void Dispose()
     {
         _notifyIcon.Visible = false;

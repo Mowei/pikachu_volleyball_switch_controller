@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace SwitchMotionBridge;
 
+// 虛擬鍵盤代碼（Windows Virtual-Key Codes）
 internal enum VirtualKeyShort : short
 {
     KEY_D = 0x44,
@@ -16,12 +17,12 @@ internal enum VirtualKeyShort : short
     RETURN = 0x0D
 }
 
-// Simulates keyboard input via the Windows SendInput API.
+// 透過 Windows 的 SendInput API 模擬鍵盤輸入。
 internal static class KeyboardSender
 {
     private enum KEYEVENTF : uint
     {
-        KEYUP = 0x0002
+        KEYUP = 0x0002 // 標示為鍵盤抬起事件
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -54,12 +55,14 @@ internal static class KeyboardSender
     [DllImport("user32.dll")]
     private static extern IntPtr GetMessageExtraInfo();
 
+    // 模擬快速按一下鍵盤（按下後立即抬起）
     public static void SendKeyPress(VirtualKeyShort key)
     {
         SendKey(key, true);
         SendKey(key, false);
     }
 
+    // 模擬鍵盤按下或抬起事件，可用於長按不放的場合
     public static void SendKey(VirtualKeyShort key, bool keyDown)
     {
         var input = new INPUT

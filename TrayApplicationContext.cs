@@ -1,6 +1,6 @@
 namespace SwitchMotionBridge;
 
-// Tray application lifecycle: wires the tray icon UI to the controller worker.
+// 系統匣應用程式生命周期：連接系統匣圖示 UI 與控制器偵測執行緒。
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly TrayIconManager _trayIconManager;
@@ -13,11 +13,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _controllerWorker.Start();
     }
 
+    // 點選選單中的「Exit」時結束應用程式
     private void Exit_Click(object? sender, EventArgs e)
     {
         ExitThread();
     }
 
+    // 應用程式結束前，停止偵測執行緒並釋放圖示資源
     protected override void ExitThreadCore()
     {
         _controllerWorker.Stop();
