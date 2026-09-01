@@ -165,7 +165,7 @@ internal sealed class ControllerWorker
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"裝置讀取中斷（{device.DevicePath}）：{ex.Message}");
+            NotificationService.Notify($"裝置讀取中斷（{device.DevicePath}）：{ex.Message}");
         }
         finally
         {

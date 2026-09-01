@@ -48,7 +48,7 @@ internal static class MotionSettings
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"讀取體感參數設定檔失敗，改用預設值：{ex.Message}");
+            NotificationService.Notify($"讀取體感參數設定檔失敗，改用預設值：{ex.Message}");
             return new MotionSettingsData();
         }
     }

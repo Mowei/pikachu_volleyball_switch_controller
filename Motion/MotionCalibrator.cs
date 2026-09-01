@@ -29,7 +29,7 @@ internal sealed class MotionCalibrator
             _gyroXSum = _gyroYSum = _gyroZSum = 0;
         }
 
-        Console.WriteLine("開始體感校正，請將手把靜置於水平桌面...");
+        NotificationService.Notify("開始體感校正，請將手把靜置於水平桌面...");
     }
 
     // 套用目前的零點偏移量；若正在校正中則累積樣本，滿額後自動計算偏移量
@@ -57,7 +57,7 @@ internal sealed class MotionCalibrator
                     _gyroYOffset = _gyroYSum / _collected;
                     _gyroZOffset = _gyroZSum / _collected;
                     _isCalibrating = false;
-                    Console.WriteLine("體感校正完成");
+                    NotificationService.Notify("體感校正完成");
                 }
             }
 
