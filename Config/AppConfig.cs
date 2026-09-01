@@ -17,8 +17,8 @@ internal static class AppConfig
     public static readonly double DownThreshold = MotionSettingsData.DownThreshold; // 判定下蹲的加速度門檻
     public static readonly double DownReleaseThreshold = MotionSettingsData.DownReleaseThreshold; // 已按住下蹲鍵時的鬆開門檻（避免抖動連點）
     public static readonly double HitThreshold = MotionSettingsData.HitThreshold; // 判定揮擊動作的陀螺儀角速度門檻
-    public static bool MotionKeyMappingEnabled = false; // 是否啟用「體感轉按鍵」功能
-    public static bool ButtonKeyMappingEnabled = false; // 是否啟用「按鈕轉按鍵」功能（非體感，依 keybindings.json 的 Buttons 設定）
+    public static bool MotionKeyMappingEnabled = true; // 是否啟用「體感轉按鍵」功能
+    public static bool ButtonKeyMappingEnabled = true; // 是否啟用「按鈕轉按鍵」功能（非體感，依 keybindings.json 的 Buttons 設定）
     public static bool VerboseLogging = false; // 是否於主控台列印每筆 IMU 報告，預設關閉以免洗版拖慢效能
 
     // 依命令列參數判斷目前為單人模式或雙人模式；未帶參數時預設為雙人模式

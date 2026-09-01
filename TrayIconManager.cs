@@ -24,14 +24,14 @@ internal sealed class TrayIconManager : IDisposable
             Enabled = false // 僅作為顯示用途，不可點擊
         };
 
-        var motionKeyMappingMenuItem = new ToolStripMenuItem("體感轉按鍵")
+        var motionKeyMappingMenuItem = new ToolStripMenuItem("啟用體感")
         {
             CheckOnClick = true,
             Checked = AppConfig.MotionKeyMappingEnabled
         };
         motionKeyMappingMenuItem.CheckedChanged += (_, _) => AppConfig.MotionKeyMappingEnabled = motionKeyMappingMenuItem.Checked;
 
-        var buttonKeyMappingMenuItem = new ToolStripMenuItem("按鈕轉按鍵")
+        var buttonKeyMappingMenuItem = new ToolStripMenuItem("啟用按鍵")
         {
             CheckOnClick = true,
             Checked = AppConfig.ButtonKeyMappingEnabled
