@@ -14,8 +14,9 @@ internal sealed class TrayIconManager : IDisposable
     private readonly nint _redIconHandle;
     private readonly nint _yellowIconHandle;
     private readonly nint _greenIconHandle;
+    private readonly Dictionary<PlayerMode, ToolStripMenuItem> _playerModeMenuItems = new();
 
-    public TrayIconManager(EventHandler onExitClick, EventHandler onCalibrateClick, EventHandler onEditKeyBindingsClick, EventHandler onEditMotionSettingsClick, EventHandler onSensorSettingsClick)
+    public TrayIconManager(EventHandler onExitClick, EventHandler onCalibrateClick, EventHandler onEditKeyBindingsClick, EventHandler onEditMotionSettingsClick, EventHandler onSensorSettingsClick, PlayerMode initialPlayerMode, Action<PlayerMode> onPlayerModeChanged)
     {
         // 預先產生三種顏色圖示，對應三種連線狀態
         (_redIcon, _redIconHandle) = CreateColorIcon(Color.Red);
@@ -67,9 +68,16 @@ internal sealed class TrayIconManager : IDisposable
         var sensorSettingsMenuItem = new ToolStripMenuItem("感測器參數設定");
         sensorSettingsMenuItem.Click += onSensorSettingsClick;
 
+        var playerModeMenuItem = new ToolStripMenuItem("玩家模式");
+        AddPlayerModeItem(playerModeMenuItem, PlayerMode.SinglePlayer, "單人模式", initialPlayerMode, onPlayerModeChanged);
+        AddPlayerModeItem(playerModeMenuItem, PlayerMode.DualPlayer, "雙人模式（1P+2P）", initialPlayerMode, onPlayerModeChanged);
+        AddPlayerModeItem(playerModeMenuItem, PlayerMode.LeftPlayer, "1P 專屬（左搖桿）", initialPlayerMode, onPlayerModeChanged);
+        AddPlayerModeItem(playerModeMenuItem, PlayerMode.RightPlayer, "2P 專屬（右搖桿）", initialPlayerMode, onPlayerModeChanged);
+
         var contextMenu = new ContextMenuStrip();
         contextMenu.Items.Add(_statusMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
+        contextMenu.Items.Add(playerModeMenuItem);
         contextMenu.Items.Add(motionKeyMappingMenuItem);
         contextMenu.Items.Add(buttonKeyMappingMenuItem);
         contextMenu.Items.Add(verboseLoggingMenuItem);
@@ -103,6 +111,34 @@ internal sealed class TrayIconManager : IDisposable
 
         _notifyIcon.Text = text.Length <= 63 ? text : text.Substring(0, 63); // NotifyIcon.Text 限制最多 63 字元
         _statusMenuItem.Text = $"狀態：{text}";
+    }
+
+    // 建立單一玩家模式選單項，並以手動互斥的方式模擬單選（ToolStripMenuItem 本身無原生單選群組）
+    private void AddPlayerModeItem(ToolStripMenuItem parent, PlayerMode mode, string text, PlayerMode initialPlayerMode, Action<PlayerMode> onPlayerModeChanged)
+    {
+        var item = new ToolStripMenuItem(text)
+        {
+            CheckOnClick = false,
+            Checked = mode == initialPlayerMode
+        };
+        item.Click += (_, _) =>
+        {
+            if (item.Checked)
+            {
+                return;
+            }
+
+            foreach (var other in _playerModeMenuItems.Values)
+            {
+                other.Checked = false;
+            }
+
+            item.Checked = true;
+            onPlayerModeChanged(mode);
+        };
+
+        _playerModeMenuItems[mode] = item;
+        parent.DropDownItems.Add(item);
     }
 
     // 繪製一個 16x16 圓形圖標作為系統匣狀態指示，同時回傳原始 HICON 句柄以便日後釋放

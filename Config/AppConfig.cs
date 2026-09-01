@@ -59,17 +59,8 @@ internal static class AppConfig
         overrideSet?.DownReleaseThreshold ?? defaults.DownReleaseThreshold,
         overrideSet?.HitThreshold ?? defaults.HitThreshold);
 
-    // 依命令列參數判斷目前為單人模式或雙人模式；未帶參數時預設為雙人模式
-    public static PlayerMode DetermineMode()
-    {
-        var args = Environment.GetCommandLineArgs();
-        if (args.Length > 1 && args[1].Equals("single", StringComparison.OrdinalIgnoreCase))
-        {
-            return PlayerMode.SinglePlayer;
-        }
-
-        return PlayerMode.DualPlayer;
-    }
+    // 玩家模式改由系統匣選單即時切換（見 TrayIconManager），此處僅提供啟動時的預設值
+    public static readonly PlayerMode DefaultPlayerMode = PlayerMode.DualPlayer;
 
     // 重新讀取 motionsettings.json 並套用新的門檻值，供設定檔熱重載使用
     public static void ReloadMotionSettings()

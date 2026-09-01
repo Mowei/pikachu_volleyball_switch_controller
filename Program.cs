@@ -10,7 +10,7 @@ internal static class Program
     {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        // 依命令列參數決定玩家模式，並啟動系統匣主程式
-        Application.Run(new TrayApplicationContext(AppConfig.DetermineMode()));
+        // 玩家模式預設為雙人，可於執行期間透過系統匣選單切換
+        Application.Run(new TrayApplicationContext(AppConfig.DefaultPlayerMode));
     }
 }

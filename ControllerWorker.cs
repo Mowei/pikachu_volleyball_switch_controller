@@ -10,10 +10,11 @@ namespace SwitchMotionBridge;
 // 在背景執行執行緒，負責偵測 Joy-Con/Pro 控制器、讀取 HID 報告並轉發體感資料。
 internal sealed class ControllerWorker
 {
-    private readonly PlayerMode _defaultMode;
     private readonly Action<ConnectionState, string> _onStatusChanged; // 連線狀態變更時的回調（更新系統匣圖示）
     private readonly ConcurrentDictionary<string, DeviceReaderState> _deviceReaders = new(); // 依裝置路徑追蹤各自的讀取執行緒與按鍵映射
     private readonly object _processLock = new(); // 多裝置可能同時回報動作，序列化按鍵狀態機的存取
+    private readonly object _modeLock = new(); // 序列化玩家模式切換，避免重覆呼叫 Stop/Start 互相干擾
+    private PlayerMode _defaultMode;
     private CancellationTokenSource? _cts;
     private Thread? _monitorThread;
 
@@ -37,6 +38,25 @@ internal sealed class ControllerWorker
     {
         _defaultMode = mode;
         _onStatusChanged = onStatusChanged;
+    }
+
+    // 目前套用的玩家模式，供系統匣選單顯示目前選取狀態
+    public PlayerMode CurrentMode => _defaultMode;
+
+    // 切換玩家模式：停止目前所有裝置讀取執行緒，改用新模式重新偵測與建立
+    public void SetMode(PlayerMode mode)
+    {
+        lock (_modeLock)
+        {
+            if (_defaultMode == mode)
+            {
+                return;
+            }
+
+            _defaultMode = mode;
+            Stop();
+            Start();
+        }
     }
 
     // 觸發一次新的體感零點校正

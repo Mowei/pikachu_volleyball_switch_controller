@@ -14,7 +14,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     public TrayApplicationContext(PlayerMode mode)
     {
-        _trayIconManager = new TrayIconManager(Exit_Click, Calibrate_Click, EditKeyBindings_Click, EditMotionSettings_Click, SensorSettings_Click);
+        _trayIconManager = new TrayIconManager(Exit_Click, Calibrate_Click, EditKeyBindings_Click, EditMotionSettings_Click, SensorSettings_Click, mode, PlayerMode_Changed);
         _controllerWorker = new ControllerWorker(mode, _trayIconManager.UpdateStatus);
         _controllerWorker.Start();
 
@@ -36,6 +36,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private void Calibrate_Click(object? sender, EventArgs e)
     {
         _controllerWorker.StartCalibration();
+    }
+
+    // 使用者於選單切換玩家模式：重建裝置偵測較耗時，於背景執行緒進行以免卡住系統匣選單
+    private void PlayerMode_Changed(PlayerMode mode)
+    {
+        Task.Run(() => _controllerWorker.SetMode(mode));
+        NotificationService.Notify($"玩家模式已切換為：{mode}");
     }
 
     // 點選選單中的「編輯按鍵設定」時，以預設程式開啟設定檔
