@@ -21,7 +21,7 @@ internal sealed class MotionKeyMapper
         {
             PlayerMode.SinglePlayer => bindings.SinglePlayer,
             PlayerMode.RightPlayer => bindings.RightPlayer,
-            PlayerMode.DualPlayer => bindings.DualPlayer,
+            PlayerMode.DualPlayer => bindings.LeftPlayer,
             _ => bindings.LeftPlayer
         };
 

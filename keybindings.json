@@ -14,14 +14,6 @@
     // 任一軸向陀螺儀角速度超過 HitThreshold 時觸發（揮擊動作）
     "Hit": "RETURN"
   },
-  "DualPlayer": {
-    // 雙人模式的預設設定：1P 左控制器 + 2P 右控制器同時啟用
-    "Jump": "KEY_R",
-    "Down": "KEY_F",
-    "Left": "KEY_D",
-    "Right": "KEY_G",
-    "Hit": "KEY_Z"
-  },
   "LeftPlayer": {
     // 1P（左控制器）
     "Jump": "KEY_R",

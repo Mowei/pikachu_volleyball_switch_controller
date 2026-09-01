@@ -125,12 +125,12 @@ internal sealed class ControllerWorker
         }
 
         var productId = device.ProductID;
-        if (productId == 0x2007)
+        if (defaultMode == PlayerMode.DualPlayer)
         {
-            return PlayerMode.RightPlayer;
+            return productId == 0x2007 ? PlayerMode.RightPlayer : PlayerMode.LeftPlayer;
         }
 
-        return PlayerMode.LeftPlayer;
+        return defaultMode;
     }
 
     // 單一裝置的讀取迴圈：開啟串流、啟用 IMU 並持續讀取報告，裝置中斷或取消時結束
