@@ -17,6 +17,10 @@ internal static class AppConfig
     public static readonly double DownThreshold = MotionSettingsData.DownThreshold; // 判定下蹲的加速度門檻
     public static readonly double DownReleaseThreshold = MotionSettingsData.DownReleaseThreshold; // 已按住下蹲鍵時的鬆開門檻（避免抖動連點）
     public static readonly double HitThreshold = MotionSettingsData.HitThreshold; // 判定揮擊動作的陀螺儀角速度門檻
+    public static bool AutoCalibrationEnabled = MotionSettingsData.AutoCalibrationEnabled; // 是否偵測手把水平靜止並自動觸發校正
+    public static readonly double StillAccelTolerance = MotionSettingsData.StillAccelTolerance; // 判定靜止的加速度向量長度與 1g 的容許誤差
+    public static readonly double StillGyroTolerance = MotionSettingsData.StillGyroTolerance; // 判定靜止的陀螺儀角速度容許值（度/秒）
+    public static readonly TimeSpan StillDuration = TimeSpan.FromMilliseconds(MotionSettingsData.StillDurationMs); // 需持續靜止多久才自動觸發校正
     public static bool MotionKeyMappingEnabled = true; // 是否啟用「體感轉按鍵」功能
     public static bool ButtonKeyMappingEnabled = true; // 是否啟用「按鈕轉按鍵」功能（非體感，依 keybindings.json 的 Buttons 設定）
     public static bool VerboseLogging = false; // 是否於主控台列印每筆 IMU 報告，預設關閉以免洗版拖慢效能

@@ -48,6 +48,13 @@ internal sealed class TrayIconManager : IDisposable
         var calibrateMenuItem = new ToolStripMenuItem("開始校正");
         calibrateMenuItem.Click += onCalibrateClick;
 
+        var autoCalibrationMenuItem = new ToolStripMenuItem("啟用自動校正")
+        {
+            CheckOnClick = true,
+            Checked = AppConfig.AutoCalibrationEnabled
+        };
+        autoCalibrationMenuItem.CheckedChanged += (_, _) => AppConfig.AutoCalibrationEnabled = autoCalibrationMenuItem.Checked;
+
         var editKeyBindingsMenuItem = new ToolStripMenuItem("編輯按鍵設定");
         editKeyBindingsMenuItem.Click += onEditKeyBindingsClick;
 
@@ -61,6 +68,7 @@ internal sealed class TrayIconManager : IDisposable
         contextMenu.Items.Add(buttonKeyMappingMenuItem);
         contextMenu.Items.Add(verboseLoggingMenuItem);
         contextMenu.Items.Add(calibrateMenuItem);
+        contextMenu.Items.Add(autoCalibrationMenuItem);
         contextMenu.Items.Add(editKeyBindingsMenuItem);
         contextMenu.Items.Add(editMotionSettingsMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());

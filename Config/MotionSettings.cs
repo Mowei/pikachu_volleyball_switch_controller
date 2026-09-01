@@ -12,6 +12,10 @@ internal sealed class MotionSettingsData
     public double DownReleaseThreshold { get; set; } = -0.6;
     public double HitThreshold { get; set; } = 1800.0;
     public int MotionCooldownMs { get; set; } = 250;
+    public bool AutoCalibrationEnabled { get; set; } = true;
+    public double StillAccelTolerance { get; set; } = 0.05;
+    public double StillGyroTolerance { get; set; } = 5.0;
+    public int StillDurationMs { get; set; } = 1000;
 }
 
 // 負責讀取、建立與解析體感參數設定檔（motionsettings.json）。

@@ -18,6 +18,9 @@ internal sealed class MotionCalibrator
     private double _gyroYOffset;
     private double _gyroZOffset;
 
+    private DateTime? _stillSince; // 目前這段連續靜止狀態的起始時間，變動時歸零
+    private bool _autoCalibratedForCurrentStillness; // 避免同一段靜止期間重複觸發自動校正
+
     // 開始一次新的校正流程，期間手把應靜置於水平桌面
     public void StartCalibration()
     {
@@ -32,12 +35,17 @@ internal sealed class MotionCalibrator
         NotificationService.Notify("開始體感校正，請將手把靜置於水平桌面...");
     }
 
-    // 套用目前的零點偏移量；若正在校正中則累積樣本，滿額後自動計算偏移量
+    // 套用目前的零點偏移量；若正在校正中則累積樣本，滿額後自動計算偏移量；未校正時偵測水平靜止並自動觸發校正
     public ((double x, double y, double z) accel, (double x, double y, double z) gyro) Apply(
         (double x, double y, double z) accel, (double x, double y, double z) gyro)
     {
         lock (_lock)
         {
+            if (!_isCalibrating)
+            {
+                DetectStillnessAndAutoCalibrate(accel, gyro);
+            }
+
             if (_isCalibrating)
             {
                 _accelXSum += accel.x;
@@ -64,6 +72,35 @@ internal sealed class MotionCalibrator
             var calibratedAccel = (accel.x - _accelXOffset, accel.y - _accelYOffset, accel.z - _accelZOffset);
             var calibratedGyro = (gyro.x - _gyroXOffset, gyro.y - _gyroYOffset, gyro.z - _gyroZOffset);
             return (calibratedAccel, calibratedGyro);
+        }
+    }
+
+    // 依原始（未校正）讀數判斷手把是否已水平靜置一段時間，符合條件時自動觸發一次校正
+    private void DetectStillnessAndAutoCalibrate((double x, double y, double z) accel, (double x, double y, double z) gyro)
+    {
+        if (!AppConfig.AutoCalibrationEnabled)
+        {
+            _stillSince = null;
+            return;
+        }
+
+        var accelMagnitude = Math.Sqrt(accel.x * accel.x + accel.y * accel.y + accel.z * accel.z);
+        var gyroMagnitude = Math.Max(Math.Abs(gyro.x), Math.Max(Math.Abs(gyro.y), Math.Abs(gyro.z)));
+        var isStill = Math.Abs(accelMagnitude - 1.0) <= AppConfig.StillAccelTolerance && gyroMagnitude <= AppConfig.StillGyroTolerance;
+
+        if (!isStill)
+        {
+            _stillSince = null;
+            _autoCalibratedForCurrentStillness = false;
+            return;
+        }
+
+        _stillSince ??= DateTime.UtcNow;
+
+        if (!_autoCalibratedForCurrentStillness && DateTime.UtcNow - _stillSince.Value >= AppConfig.StillDuration)
+        {
+            _autoCalibratedForCurrentStillness = true;
+            StartCalibration(); // 與呼叫端同執行緒重入同一把鎖，C# lock 允許同執行緒重入
         }
     }
 }
