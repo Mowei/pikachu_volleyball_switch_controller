@@ -1,3 +1,6 @@
+using SwitchMotionBridge.Config;
+using SwitchMotionBridge.Enums;
+
 namespace SwitchMotionBridge;
 
 // 將加速度計/陀螺儀資料轉換為方向鍵按住與跳躍/攻擊鍵採作。

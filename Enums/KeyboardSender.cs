@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.Enums;
 
 // 虛擬鍵盤代碼（Windows Virtual-Key Codes），完整定義常用鍵位供 MotionKeyMapper 綁定
 internal enum VirtualKeyShort : short
@@ -187,14 +187,14 @@ internal static class KeyboardSender
         public ushort wScan;
         public uint dwFlags;
         public uint time;
-        public IntPtr dwExtraInfo;
+        public nint dwExtraInfo;
     }
 
     [DllImport("user32.dll")]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     [DllImport("user32.dll")]
-    private static extern IntPtr GetMessageExtraInfo();
+    private static extern nint GetMessageExtraInfo();
 
     [DllImport("user32.dll")]
     private static extern uint MapVirtualKey(uint uCode, uint uMapType);

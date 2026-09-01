@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using HidSharp;
+using SwitchMotionBridge.Enums;
 
 namespace SwitchMotionBridge;
 

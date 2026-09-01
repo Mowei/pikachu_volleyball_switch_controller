@@ -1,5 +1,7 @@
 namespace SwitchMotionBridge;
 
+using SwitchMotionBridge.Config;
+using SwitchMotionBridge.Enums;
 using System.Diagnostics;
 
 // 系統匣應用程式生命周期：連接系統匣圖示 UI 與控制器偵測執行緒。

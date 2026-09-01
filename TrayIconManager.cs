@@ -1,3 +1,4 @@
+using SwitchMotionBridge.Enums;
 using System.Runtime.InteropServices;
 
 namespace SwitchMotionBridge;

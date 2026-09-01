@@ -1,3 +1,5 @@
+using SwitchMotionBridge.Enums;
+
 namespace SwitchMotionBridge;
 
 // 集中管理應用程式的設定常數與啟動參數判斷。

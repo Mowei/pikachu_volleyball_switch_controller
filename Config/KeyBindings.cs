@@ -1,6 +1,7 @@
+using SwitchMotionBridge.Enums;
 using System.Text.Json;
 
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.Config;
 
 // 單一模式（單人／雙人）下，各動作對應的按鍵名稱（對應 VirtualKeyShort 成員名稱）。
 internal sealed class KeyBindingSet

@@ -1,4 +1,4 @@
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.Enums;
 
 // 控制器連線狀態，用於決定系統匣圖示顏色與提示文字。
 internal enum ConnectionState

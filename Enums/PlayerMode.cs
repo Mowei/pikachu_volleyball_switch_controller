@@ -1,4 +1,4 @@
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.Enums;
 
 // 玩家模式：決定體感動作對應到哪一組按鍵。
 internal enum PlayerMode
