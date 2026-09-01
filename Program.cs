@@ -1,3 +1,5 @@
+using SwitchMotionBridge.Tray;
+
 namespace SwitchMotionBridge;
 
 // 程式進入點：啟動系統匣應用程式。

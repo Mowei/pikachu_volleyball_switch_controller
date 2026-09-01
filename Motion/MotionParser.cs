@@ -1,4 +1,4 @@
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.Motion;
 
 // 控制器實體按鈕的目前按下狀態（對應標準輸入報告 byte[3]/[4]/[5]）。
 internal readonly record struct ControllerButtons(
@@ -82,6 +82,6 @@ internal static class MotionParser
             return 0;
         }
 
-        return (short)(data[offset] | (data[offset + 1] << 8));
+        return (short)(data[offset] | data[offset + 1] << 8);
     }
 }

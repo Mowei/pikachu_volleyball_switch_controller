@@ -1,7 +1,7 @@
 using SwitchMotionBridge.Enums;
 using System.Runtime.InteropServices;
 
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.Tray;
 
 // 管理系統匣通知圖示、狀態選單項，以及紅/黃/綠三種連線狀態圖示。
 internal sealed class TrayIconManager : IDisposable
@@ -107,7 +107,7 @@ internal sealed class TrayIconManager : IDisposable
     }
 
     [DllImport("gdi32.dll")]
-    private static extern bool DeleteObject(IntPtr hObject);
+    private static extern bool DeleteObject(nint hObject);
 
     // 釋放通知圖示與所有自建的圖標資源
     public void Dispose()

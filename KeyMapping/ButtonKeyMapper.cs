@@ -1,7 +1,8 @@
 using SwitchMotionBridge.Config;
 using SwitchMotionBridge.Enums;
+using SwitchMotionBridge.Motion;
 
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.KeyMapping;
 
 // 依 keybindings.json 中 Buttons 設定，將控制器實體按鈕的按下/放開狀態同步為鍵盤按鍵（非體感）。
 internal sealed class ButtonKeyMapper

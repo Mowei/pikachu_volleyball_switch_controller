@@ -1,7 +1,7 @@
 using SwitchMotionBridge.Config;
 using SwitchMotionBridge.Enums;
 
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.KeyMapping;
 
 // 將加速度計/陀螺儀資料轉換為方向鍵按住與跳躍/攻擊鍵採作。
 internal sealed class MotionKeyMapper

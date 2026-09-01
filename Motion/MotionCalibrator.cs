@@ -1,4 +1,4 @@
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.Motion;
 
 // 收集靜置狀態下的感測器讀數，計算零點偏移量以校正加速度計/陀螺儀的量測誤差。
 internal sealed class MotionCalibrator

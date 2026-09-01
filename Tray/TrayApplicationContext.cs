@@ -1,4 +1,4 @@
-namespace SwitchMotionBridge;
+namespace SwitchMotionBridge.Tray;
 
 using SwitchMotionBridge.Config;
 using SwitchMotionBridge.Enums;
