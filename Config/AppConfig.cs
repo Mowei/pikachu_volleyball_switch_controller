@@ -2,6 +2,15 @@ using SwitchMotionBridge.Enums;
 
 namespace SwitchMotionBridge;
 
+// 單一玩家實際套用的體感上下限門檻（已套用全域預設值回退）。
+internal readonly record struct MotionThresholds(
+    double MoveThreshold,
+    double MoveReleaseThreshold,
+    double JumpThreshold,
+    double DownThreshold,
+    double DownReleaseThreshold,
+    double HitThreshold);
+
 // 集中管理應用程式的設定常數與啟動參數判斷。
 internal static class AppConfig
 {
@@ -11,7 +20,7 @@ internal static class AppConfig
     private static MotionSettingsData _motionSettingsData = MotionSettings.Load(); // 體感判定參數，讀自 motionsettings.json
 
     public static TimeSpan MotionCooldown = TimeSpan.FromMilliseconds(_motionSettingsData.MotionCooldownMs); // 跳躍/攻擊觸發後的冷卻時間，避免連續誤觸
-    public static double MoveThreshold = _motionSettingsData.MoveThreshold; // 判定左右移動的加速度門檻
+    public static double MoveThreshold = _motionSettingsData.MoveThreshold; // 判定左右移動的加速度門檻（單人模式／1P·2P 未覆寫時的全域預設值）
     public static double MoveReleaseThreshold = _motionSettingsData.MoveReleaseThreshold; // 已按住方向鍵時的鬆開門檻（低於觸發門檻，避免抖動連點）
     public static double JumpThreshold = _motionSettingsData.JumpThreshold; // 判定跳躍的加速度門檻
     public static double DownThreshold = _motionSettingsData.DownThreshold; // 判定下蹲的加速度門檻
@@ -26,10 +35,29 @@ internal static class AppConfig
     public static volatile bool VerboseLogging = false; // 是否於主控台列印每筆 IMU 報告，預設關閉以免洗版拖慢效能
     public static volatile bool UseToastNotifications = true; // 訊息通知方式：true 使用 Windows Toast，false 使用主控台輸出
 
+    private static MotionThresholds _leftPlayerThresholds = BuildThresholds(_motionSettingsData, _motionSettingsData.LeftPlayer);
+    private static MotionThresholds _rightPlayerThresholds = BuildThresholds(_motionSettingsData, _motionSettingsData.RightPlayer);
+
     static AppConfig()
     {
         AutoCalibrationEnabled = _motionSettingsData.AutoCalibrationEnabled;
     }
+
+    // 依玩家模式取得實際套用的體感上下限門檻（1P/2P 若無覆寫則沿用全域預設值）
+    public static MotionThresholds GetThresholds(PlayerMode mode) => mode switch
+    {
+        PlayerMode.LeftPlayer => _leftPlayerThresholds,
+        PlayerMode.RightPlayer => _rightPlayerThresholds,
+        _ => new MotionThresholds(MoveThreshold, MoveReleaseThreshold, JumpThreshold, DownThreshold, DownReleaseThreshold, HitThreshold)
+    };
+
+    private static MotionThresholds BuildThresholds(MotionSettingsData defaults, MotionThresholdSet? overrideSet) => new(
+        overrideSet?.MoveThreshold ?? defaults.MoveThreshold,
+        overrideSet?.MoveReleaseThreshold ?? defaults.MoveReleaseThreshold,
+        overrideSet?.JumpThreshold ?? defaults.JumpThreshold,
+        overrideSet?.DownThreshold ?? defaults.DownThreshold,
+        overrideSet?.DownReleaseThreshold ?? defaults.DownReleaseThreshold,
+        overrideSet?.HitThreshold ?? defaults.HitThreshold);
 
     // 依命令列參數判斷目前為單人模式或雙人模式；未帶參數時預設為雙人模式
     public static PlayerMode DetermineMode()
@@ -58,5 +86,7 @@ internal static class AppConfig
         StillAccelTolerance = _motionSettingsData.StillAccelTolerance;
         StillGyroTolerance = _motionSettingsData.StillGyroTolerance;
         StillDuration = TimeSpan.FromMilliseconds(_motionSettingsData.StillDurationMs);
+        _leftPlayerThresholds = BuildThresholds(_motionSettingsData, _motionSettingsData.LeftPlayer);
+        _rightPlayerThresholds = BuildThresholds(_motionSettingsData, _motionSettingsData.RightPlayer);
     }
 }

@@ -58,6 +58,15 @@ internal sealed class ControllerWorker
         }
     }
 
+    // 通知所有目前作用中的裝置重新讀取 motionsettings.json 的 1P/2P 門檻覆寫，供設定檔熱重載使用
+    public void ReloadMotionThresholds()
+    {
+        foreach (var reader in _deviceReaders.Values)
+        {
+            reader.Mapper.ReloadThresholds();
+        }
+    }
+
     // 建立並啟動監控執行緒
     public void Start()
     {

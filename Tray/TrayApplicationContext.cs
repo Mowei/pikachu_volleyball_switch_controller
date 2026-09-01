@@ -14,7 +14,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     public TrayApplicationContext(PlayerMode mode)
     {
-        _trayIconManager = new TrayIconManager(Exit_Click, Calibrate_Click, EditKeyBindings_Click, EditMotionSettings_Click);
+        _trayIconManager = new TrayIconManager(Exit_Click, Calibrate_Click, EditKeyBindings_Click, EditMotionSettings_Click, SensorSettings_Click);
         _controllerWorker = new ControllerWorker(mode, _trayIconManager.UpdateStatus);
         _controllerWorker.Start();
 
@@ -27,6 +27,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _motionSettingsWatcher = new ConfigWatcher(MotionSettings.FilePath, () =>
         {
             AppConfig.ReloadMotionSettings();
+            _controllerWorker.ReloadMotionThresholds();
             NotificationService.Notify("體感參數設定已重新載入");
         });
     }
@@ -49,6 +50,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         MotionSettings.EnsureFileExists();
         Process.Start(new ProcessStartInfo(MotionSettings.FilePath) { UseShellExecute = true });
+    }
+
+    // 點選選單中的「感測器參數設定」時，開啟 1P/2P 體感上下限門檻設定表單
+    private void SensorSettings_Click(object? sender, EventArgs e)
+    {
+        using var form = new SensorSettingsForm(_controllerWorker);
+        form.ShowDialog();
     }
 
     // 點選選單中的「Exit」時結束應用程式

@@ -17,15 +17,22 @@ internal sealed class MotionKeyMapper
     private bool _leftHeld;
     private bool _rightHeld;
     private bool _downHeld;
+    private MotionThresholds _thresholds;
 
     public MotionKeyMapper(PlayerMode mode)
     {
         _mode = mode;
         LoadBindings();
+        LoadThresholds();
     }
 
     // 重新讀取 keybindings.json 並套用最新的按鍵綁定，供設定檔熱重載使用
     public void ReloadBindings() => LoadBindings();
+
+    // 重新讀取 motionsettings.json 並套用最新的 1P/2P 體感上下限門檻，供設定檔熱重載使用
+    public void ReloadThresholds() => LoadThresholds();
+
+    private void LoadThresholds() => _thresholds = AppConfig.GetThresholds(_mode);
 
     private void LoadBindings()
     {
@@ -50,7 +57,7 @@ internal sealed class MotionKeyMapper
     public void MapMotionToKeys((double x, double y, double z) accel, (double x, double y, double z) gyro)
     {
         // 向上加速度超過門檻且已過冷卻時間，視為一次跳躍
-        if (DateTime.UtcNow - _lastJump > AppConfig.MotionCooldown && accel.y > AppConfig.JumpThreshold)
+        if (DateTime.UtcNow - _lastJump > AppConfig.MotionCooldown && accel.y > _thresholds.JumpThreshold)
         {
             KeyboardSender.SendKeyPress(_jumpKey);
             _lastJump = DateTime.UtcNow;
@@ -58,15 +65,15 @@ internal sealed class MotionKeyMapper
 
         // 任一軸向陀螺儀角速度超過門檻且已過冷卻時間，視為一次揮擊
         if (DateTime.UtcNow - _lastHit > AppConfig.MotionCooldown &&
-            (Math.Abs(gyro.x) > AppConfig.HitThreshold || Math.Abs(gyro.y) > AppConfig.HitThreshold || Math.Abs(gyro.z) > AppConfig.HitThreshold))
+            (Math.Abs(gyro.x) > _thresholds.HitThreshold || Math.Abs(gyro.y) > _thresholds.HitThreshold || Math.Abs(gyro.z) > _thresholds.HitThreshold))
         {
             KeyboardSender.SendKeyPress(_hitKey);
             _lastHit = DateTime.UtcNow;
         }
 
-        var moveRight = _rightHeld ? accel.x > AppConfig.MoveReleaseThreshold : accel.x > AppConfig.MoveThreshold;
-        var moveLeft = _leftHeld ? accel.x < -AppConfig.MoveReleaseThreshold : accel.x < -AppConfig.MoveThreshold;
-        var moveDown = _downHeld ? accel.y < AppConfig.DownReleaseThreshold : accel.y < AppConfig.DownThreshold;
+        var moveRight = _rightHeld ? accel.x > _thresholds.MoveReleaseThreshold : accel.x > _thresholds.MoveThreshold;
+        var moveLeft = _leftHeld ? accel.x < -_thresholds.MoveReleaseThreshold : accel.x < -_thresholds.MoveThreshold;
+        var moveDown = _downHeld ? accel.y < _thresholds.DownReleaseThreshold : accel.y < _thresholds.DownThreshold;
 
         // 左右方向鍵採用互斥按住邏輯：切換方向前先鬆開另一邊
         if (moveRight && !_rightHeld)

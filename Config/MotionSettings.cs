@@ -2,6 +2,17 @@ using System.Text.Json;
 
 namespace SwitchMotionBridge;
 
+// 單一玩家（1P/2P）的體感上下限門檻覆寫，欄位皆為 nullable，未設定時沿用全域預設值。
+internal sealed class MotionThresholdSet
+{
+    public double? MoveThreshold { get; set; }
+    public double? MoveReleaseThreshold { get; set; }
+    public double? JumpThreshold { get; set; }
+    public double? DownThreshold { get; set; }
+    public double? DownReleaseThreshold { get; set; }
+    public double? HitThreshold { get; set; }
+}
+
 // 體感判定用的可調參數，對應 motionsettings.json，可不重新編譯即可調整靈敏度。
 internal sealed class MotionSettingsData
 {
@@ -16,6 +27,10 @@ internal sealed class MotionSettingsData
     public double StillAccelTolerance { get; set; } = 0.05;
     public double StillGyroTolerance { get; set; } = 5.0;
     public int StillDurationMs { get; set; } = 1000;
+
+    // 1P（左搖桿）/2P（右搖桿）的體感上下限門檻覆寫，留空則沿用上方全域預設值
+    public MotionThresholdSet? LeftPlayer { get; set; }
+    public MotionThresholdSet? RightPlayer { get; set; }
 }
 
 // 負責讀取、建立與解析體感參數設定檔（motionsettings.json）。
@@ -57,9 +72,11 @@ internal static class MotionSettings
         }
     }
 
-    private static void Save(MotionSettingsData data)
+    // 將設定資料寫回 motionsettings.json，供設定表單儲存 1P/2P 覆寫值使用
+    public static void Save(MotionSettingsData data)
     {
         var json = JsonSerializer.Serialize(data, SerializerOptions);
         File.WriteAllText(FilePath, json);
     }
 }
+

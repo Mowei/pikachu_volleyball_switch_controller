@@ -15,7 +15,7 @@ internal sealed class TrayIconManager : IDisposable
     private readonly nint _yellowIconHandle;
     private readonly nint _greenIconHandle;
 
-    public TrayIconManager(EventHandler onExitClick, EventHandler onCalibrateClick, EventHandler onEditKeyBindingsClick, EventHandler onEditMotionSettingsClick)
+    public TrayIconManager(EventHandler onExitClick, EventHandler onCalibrateClick, EventHandler onEditKeyBindingsClick, EventHandler onEditMotionSettingsClick, EventHandler onSensorSettingsClick)
     {
         // 預先產生三種顏色圖示，對應三種連線狀態
         (_redIcon, _redIconHandle) = CreateColorIcon(Color.Red);
@@ -64,6 +64,9 @@ internal sealed class TrayIconManager : IDisposable
         var editMotionSettingsMenuItem = new ToolStripMenuItem("編輯體感參數設定");
         editMotionSettingsMenuItem.Click += onEditMotionSettingsClick;
 
+        var sensorSettingsMenuItem = new ToolStripMenuItem("感測器參數設定");
+        sensorSettingsMenuItem.Click += onSensorSettingsClick;
+
         var contextMenu = new ContextMenuStrip();
         contextMenu.Items.Add(_statusMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
@@ -74,6 +77,7 @@ internal sealed class TrayIconManager : IDisposable
         contextMenu.Items.Add(autoCalibrationMenuItem);
         contextMenu.Items.Add(editKeyBindingsMenuItem);
         contextMenu.Items.Add(editMotionSettingsMenuItem);
+        contextMenu.Items.Add(sensorSettingsMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add("Exit", null, onExitClick);
 
