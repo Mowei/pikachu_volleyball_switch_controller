@@ -11,6 +11,9 @@ internal sealed class KeyBindingSet
     public string Left { get; set; } = "";
     public string Right { get; set; } = "";
     public string Hit { get; set; } = "";
+
+    // 實體按鈕對鍵盤按鍵的對應（非體感），鍵名例如 A、B、X、Y、L、R、ZL、ZR、Plus、Minus、Home、Capture、LStick、RStick、SL、SR、DPadUp/Down/Left/Right
+    public Dictionary<string, string> Buttons { get; set; } = new();
 }
 
 // 按鍵設定檔的完整資料結構，分別對應單人模式與雙人模式（左搖桿玩家）。

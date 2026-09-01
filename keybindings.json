@@ -12,7 +12,9 @@
     // 手把向右傾斜超過 MoveThreshold 時按住
     "Right": "RIGHT_ARROW",
     // 任一軸向陀螺儀角速度超過 HitThreshold 時觸發（揮擊動作）
-    "Hit": "RETURN"
+    "Hit": "RETURN",
+    // 實體按鈕對鍵盤鍵位（非體感，需開啟系統匣「按鈕轉按鍵」選項），可用鍵名：A、B、X、Y、L、R、ZL、ZR、Plus、Minus、Home、Capture、LStick、RStick、SL、SR、DPadUp、DPadDown、DPadLeft、DPadRight
+    "Buttons": {}
   },
   "LeftPlayer": {
     // 1P（左控制器）
@@ -20,7 +22,8 @@
     "Down": "KEY_F",
     "Left": "KEY_D",
     "Right": "KEY_G",
-    "Hit": "KEY_Z"
+    "Hit": "KEY_Z",
+    "Buttons": {}
   },
   "RightPlayer": {
     // 2P（右控制器） / 單人模式
@@ -28,6 +31,7 @@
     "Down": "DOWN_ARROW",
     "Left": "LEFT_ARROW",
     "Right": "RIGHT_ARROW",
-    "Hit": "RETURN"
+    "Hit": "RETURN",
+    "Buttons": {}
   }
 }

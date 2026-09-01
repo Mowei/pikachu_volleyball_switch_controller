@@ -19,12 +19,14 @@ internal sealed class ControllerWorker
     {
         public Thread Thread { get; }
         public MotionKeyMapper Mapper { get; }
+        public ButtonKeyMapper ButtonMapper { get; }
         public MotionCalibrator Calibrator { get; }
 
-        public DeviceReaderState(Thread thread, MotionKeyMapper mapper, MotionCalibrator calibrator)
+        public DeviceReaderState(Thread thread, MotionKeyMapper mapper, ButtonKeyMapper buttonMapper, MotionCalibrator calibrator)
         {
             Thread = thread;
             Mapper = mapper;
+            ButtonMapper = buttonMapper;
             Calibrator = calibrator;
         }
     }
@@ -108,14 +110,15 @@ internal sealed class ControllerWorker
     private DeviceReaderState StartDeviceReader(HidDevice device, PlayerMode playerMode, CancellationToken cancellationToken)
     {
         var mapper = new MotionKeyMapper(playerMode);
+        var buttonMapper = new ButtonKeyMapper(playerMode);
         var calibrator = new MotionCalibrator();
-        var thread = new Thread(() => DeviceReadLoop(device, mapper, calibrator, cancellationToken))
+        var thread = new Thread(() => DeviceReadLoop(device, mapper, buttonMapper, calibrator, cancellationToken))
         {
             IsBackground = true,
             Name = $"SwitchMotionBridgeDevice-{device.DevicePath}"
         };
         thread.Start();
-        return new DeviceReaderState(thread, mapper, calibrator);
+        return new DeviceReaderState(thread, mapper, buttonMapper, calibrator);
     }
 
     private static PlayerMode ResolveDevicePlayerMode(HidDevice device, PlayerMode defaultMode)
@@ -135,7 +138,7 @@ internal sealed class ControllerWorker
     }
 
     // 單一裝置的讀取迴圈：開啟串流、啟用 IMU 並持續讀取報告，裝置中斷或取消時結束
-    private void DeviceReadLoop(HidDevice device, MotionKeyMapper mapper, MotionCalibrator calibrator, CancellationToken cancellationToken)
+    private void DeviceReadLoop(HidDevice device, MotionKeyMapper mapper, ButtonKeyMapper buttonMapper, MotionCalibrator calibrator, CancellationToken cancellationToken)
     {
         try
         {
@@ -151,7 +154,7 @@ internal sealed class ControllerWorker
                     continue;
                 }
 
-                ProcessReport(reportBuffer, bytesRead, mapper, calibrator);
+                ProcessReport(reportBuffer, bytesRead, mapper, buttonMapper, calibrator);
             }
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
@@ -256,8 +259,8 @@ internal sealed class ControllerWorker
         }
     }
 
-    // 解析報告內容，於啟用詳細記錄時列印除錯訊息，並在啟用體感轉按鍵時進一步處理
-    private void ProcessReport(byte[] report, int length, MotionKeyMapper mapper, MotionCalibrator calibrator)
+    // 解析報告內容，於啟用詳細記錄時列印除錯訊息，並在啟用體感轉按鍵/按鈕轉按鍵時進一步處理
+    private void ProcessReport(byte[] report, int length, MotionKeyMapper mapper, ButtonKeyMapper buttonMapper, MotionCalibrator calibrator)
     {
         if (length < 1)
         {
@@ -272,6 +275,7 @@ internal sealed class ControllerWorker
 
         var accel = MotionParser.ParseAccelerometer(report, length);
         var gyro = MotionParser.ParseGyroscope(report, length);
+        var buttons = MotionParser.ParseButtons(report, length);
 
         // 多裝置可能同時解析並更新按鍵狀態機，需序列化避免資料競爭
         lock (_processLock)
@@ -289,6 +293,11 @@ internal sealed class ControllerWorker
             if (AppConfig.MotionKeyMappingEnabled)
             {
                 mapper.MapMotionToKeys(accel, gyro);
+            }
+
+            if (AppConfig.ButtonKeyMappingEnabled)
+            {
+                buttonMapper.MapButtonsToKeys(buttons);
             }
         }
     }

@@ -31,6 +31,13 @@ internal sealed class TrayIconManager : IDisposable
         };
         motionKeyMappingMenuItem.CheckedChanged += (_, _) => AppConfig.MotionKeyMappingEnabled = motionKeyMappingMenuItem.Checked;
 
+        var buttonKeyMappingMenuItem = new ToolStripMenuItem("按鈕轉按鍵")
+        {
+            CheckOnClick = true,
+            Checked = AppConfig.ButtonKeyMappingEnabled
+        };
+        buttonKeyMappingMenuItem.CheckedChanged += (_, _) => AppConfig.ButtonKeyMappingEnabled = buttonKeyMappingMenuItem.Checked;
+
         var verboseLoggingMenuItem = new ToolStripMenuItem("詳細記錄")
         {
             CheckOnClick = true,
@@ -51,6 +58,7 @@ internal sealed class TrayIconManager : IDisposable
         contextMenu.Items.Add(_statusMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add(motionKeyMappingMenuItem);
+        contextMenu.Items.Add(buttonKeyMappingMenuItem);
         contextMenu.Items.Add(verboseLoggingMenuItem);
         contextMenu.Items.Add(calibrateMenuItem);
         contextMenu.Items.Add(editKeyBindingsMenuItem);
