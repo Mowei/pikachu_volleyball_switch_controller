@@ -10,6 +10,9 @@ internal readonly record struct ControllerButtons(
 // 將 Joy-Con / Pro 控制器的 IMU 報告位元組純粹解析為加速度計與陀螺儀數值。
 internal static class MotionParser
 {
+    // 報告需達到此長度才包含完整的加速度計/陀螺儀資料，否則視為不完整
+    public const int RequiredMotionReportLength = 28;
+
     // 從標準輸入報告的 byte[3]/[4]/[5] 解析出各實體按鈕的按下狀態
     public static ControllerButtons ParseButtons(byte[] data, int length)
     {

@@ -146,14 +146,25 @@ internal sealed class ControllerWorker
         {
             using var stream = device.Open();
             stream.ReadTimeout = 2000;
-            EnableImu(stream, device);
+            if (!TryEnableImu(stream, device))
+            {
+                // 啟用失敗，結束本次讀取，交由監控迴圈於下次偵測時重試
+                return;
+            }
 
             var reportBuffer = new byte[device.GetMaxInputReportLength()];
+            var shortReportWarned = false;
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (!TryReadReport(stream, reportBuffer, out var bytesRead))
                 {
                     continue;
+                }
+
+                if (bytesRead < MotionParser.RequiredMotionReportLength && !shortReportWarned)
+                {
+                    shortReportWarned = true;
+                    NotificationService.Notify($"裝置回報的資料長度過短（{bytesRead} bytes），本次連線期間體感資料可能不完整（{device.DevicePath}）");
                 }
 
                 ProcessReport(reportBuffer, bytesRead, mapper, buttonMapper, calibrator);
@@ -232,18 +243,27 @@ internal sealed class ControllerWorker
             : (ConnectionState.SingleConnected, "左搖桿未連線");
     }
 
-    // 發送子命令要求控制器啟用 IMU（陀螺儀/加速度計）偵測
-    private static void EnableImu(HidStream stream, HidDevice device)
+    // 發送子命令要求控制器啟用 IMU（陀螺儀/加速度計）偵測，並回報是否成功送出
+    private static bool TryEnableImu(HidStream stream, HidDevice device)
     {
-        var outputReportLength = device.GetMaxOutputReportLength();
-        var command = new byte[outputReportLength];
+        try
+        {
+            var outputReportLength = device.GetMaxOutputReportLength();
+            var command = new byte[outputReportLength];
 
-        command[0] = 0x01; // 輸出報告 ID
-        command[1] = 0x00; // 標頭 / 封包編號
-        command[2] = 0x40; // 子命令：啟用 IMU
-        command[3] = 0x01; // 啟用
+            command[0] = 0x01; // 輸出報告 ID
+            command[1] = 0x00; // 標頭 / 封包編號
+            command[2] = 0x40; // 子命令：啟用 IMU
+            command[3] = 0x01; // 啟用
 
-        stream.Write(command, 0, command.Length);
+            stream.Write(command, 0, command.Length);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify($"啟用體感偵測失敗（{device.DevicePath}）：{ex.Message}");
+            return false;
+        }
     }
 
     // 嘗試讀取一筆 HID 報告，超時則視為讀取失敗（不中斷迴圈）
@@ -275,24 +295,31 @@ internal sealed class ControllerWorker
             return; // 非包含 IMU 資料的報告類型，略過
         }
 
-        var accel = MotionParser.ParseAccelerometer(report, length);
-        var gyro = MotionParser.ParseGyroscope(report, length);
         var buttons = MotionParser.ParseButtons(report, length);
+
+        // 資料長度不足時體感數值不完整，略過本次體感解析以免以錯誤的零值覆蓋按鍵狀態
+        var hasFullMotionData = length >= MotionParser.RequiredMotionReportLength;
+        var accel = hasFullMotionData ? MotionParser.ParseAccelerometer(report, length) : default;
+        var gyro = hasFullMotionData ? MotionParser.ParseGyroscope(report, length) : default;
 
         // 多裝置可能同時解析並更新按鍵狀態機，需序列化避免資料競爭
         lock (_processLock)
         {
-            (accel, gyro) = calibrator.Apply(accel, gyro);
+            if (hasFullMotionData)
+            {
+                (accel, gyro) = calibrator.Apply(accel, gyro);
+            }
 
             if (AppConfig.VerboseLogging)
             {
                 Console.WriteLine(
                     $"Report: 0x{reportId:X2} | " +
-                    $"Accel X: {accel.x:F3}, Y: {accel.y:F3}, Z: {accel.z:F3} | " +
-                    $"Gyro X: {gyro.x:F2}, Y: {gyro.y:F2}, Z: {gyro.z:F2}");
+                    (hasFullMotionData
+                        ? $"Accel X: {accel.x:F3}, Y: {accel.y:F3}, Z: {accel.z:F3} | Gyro X: {gyro.x:F2}, Y: {gyro.y:F2}, Z: {gyro.z:F2}"
+                        : "體感資料不完整，本次已略過"));
             }
 
-            if (AppConfig.MotionKeyMappingEnabled)
+            if (hasFullMotionData && AppConfig.MotionKeyMappingEnabled)
             {
                 mapper.MapMotionToKeys(accel, gyro);
             }
