@@ -14,7 +14,20 @@
     // 任一軸向陀螺儀角速度超過 HitThreshold 時觸發（揮擊動作）
     "Hit": "RETURN",
     // 實體按鈕對鍵盤鍵位（非體感，需開啟系統匣「按鈕轉按鍵」選項），可用鍵名：A、B、X、Y、L、R、ZL、ZR、Plus、Minus、Home、Capture、LStick、RStick、SL、SR、DPadUp、DPadDown、DPadLeft、DPadRight
-    "Buttons": {}
+    "Buttons": {
+      "A": "KEY_Z",
+      "B": "KEY_X",
+      "X": "KEY_C",
+      "Y": "KEY_V",
+      "L": "KEY_Q",
+      "R": "KEY_W",
+      "DPadUp": "UP_ARROW",
+      "DPadDown": "DOWN_ARROW",
+      "DPadLeft": "LEFT_ARROW",
+      "DPadRight": "RIGHT_ARROW",
+      "Plus": "RETURN",
+      "Minus": "ESCAPE"
+    }
   },
   "LeftPlayer": {
     // 1P（左控制器）
@@ -23,7 +36,20 @@
     "Left": "KEY_D",
     "Right": "KEY_G",
     "Hit": "KEY_Z",
-    "Buttons": {}
+    "Buttons": {
+      "A": "KEY_Z",
+      "B": "KEY_X",
+      "X": "KEY_C",
+      "Y": "KEY_V",
+      "L": "KEY_Q",
+      "R": "KEY_W",
+      "DPadUp": "KEY_R",
+      "DPadDown": "KEY_F",
+      "DPadLeft": "KEY_D",
+      "DPadRight": "KEY_G",
+      "Plus": "KEY_Z",
+      "Minus": "ESCAPE"
+    }
   },
   "RightPlayer": {
     // 2P（右控制器） / 單人模式
@@ -32,6 +58,19 @@
     "Left": "LEFT_ARROW",
     "Right": "RIGHT_ARROW",
     "Hit": "RETURN",
-    "Buttons": {}
+    "Buttons": {
+      "A": "KEY_Z",
+      "B": "KEY_X",
+      "X": "KEY_C",
+      "Y": "KEY_V",
+      "L": "KEY_Q",
+      "R": "KEY_W",
+      "DPadUp": "UP_ARROW",
+      "DPadDown": "DOWN_ARROW",
+      "DPadLeft": "LEFT_ARROW",
+      "DPadRight": "RIGHT_ARROW",
+      "Plus": "RETURN",
+      "Minus": "ESCAPE"
+    }
   }
 }

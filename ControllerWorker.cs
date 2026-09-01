@@ -133,12 +133,25 @@ internal sealed class ControllerWorker
     // 監控迴圈：持續偵測已連接的控制器，為每個尚未讀取的裝置各自建立讀取執行緒
     private void MonitorLoop(CancellationToken cancellationToken)
     {
+        var firstCheck = true;
         while (!cancellationToken.IsCancellationRequested)
         {
             var devices = GetConnectedSwitchControllers();
+            if (firstCheck)
+            {
+                Console.WriteLine($"[診斷] 初始檢測到 {devices.Length} 個控制器");
+                foreach (var (productId, device) in devices)
+                {
+                    Console.WriteLine($"[診斷]   - 產品 ID: 0x{productId:X4}, 路徑: {device.DevicePath}");
+                }
+                firstCheck = false;
+            }
+            
             if (devices.Length == 0)
             {
-                _onStatusChanged(ConnectionState.Disconnected, "左/右搖桿皆未連線");
+                _onStatusChanged(
+                    ConnectionState.Disconnected,
+                    "未偵測到 Nintendo Switch 控制器。若搖桿燈持續閃爍，表示尚未完成 Windows 藍牙配對或已脫離連線，請先完成配對後再啟動程式。");
             }
             else
             {
@@ -162,6 +175,7 @@ internal sealed class ControllerWorker
     // 建立並啟動單一裝置的讀取執行緒
     private DeviceReaderState StartDeviceReader(HidDevice device, PlayerMode playerMode, CancellationToken cancellationToken)
     {
+        Console.WriteLine($"[診斷] 為控制器 0x{device.ProductID:X4} 建立讀取執行緒...");
         var mapper = new MotionKeyMapper(playerMode);
         var buttonMapper = new ButtonKeyMapper(playerMode);
         var calibrator = new MotionCalibrator();
@@ -195,23 +209,38 @@ internal sealed class ControllerWorker
     {
         try
         {
+            Console.WriteLine($"[診斷] 開啟設備流 0x{device.ProductID:X4}...");
             using var stream = device.Open();
             stream.ReadTimeout = 2000;
-            if (!TryEnableImu(stream, device))
+            Console.WriteLine($"[診斷] 流已開啟，初始化 HID...");
+
+            if (!TryInitializeHid(stream, device))
             {
-                // 啟用失敗，結束本次讀取，交由監控迴圈於下次偵測時重試
+                // 初始化失敗，交由監控迴圈於下次偵測時重試
+                Console.WriteLine($"[診斷] 初始化失敗，放棄本設備");
                 return;
             }
+            Console.WriteLine($"[診斷] 初始化成功，開始讀取報告...");
 
             var reportBuffer = new byte[device.GetMaxInputReportLength()];
             var shortReportWarned = false;
+            var readCount = 0;
+            var timeoutCount = 0;
+            
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (!TryReadReport(stream, reportBuffer, out var bytesRead))
                 {
+                    timeoutCount++;
+                    if (timeoutCount % 30 == 0)
+                    {
+                        Console.WriteLine($"[診斷] 0x{device.ProductID:X4} 已超時 {timeoutCount} 次（成功讀取 {readCount} 筆報告）");
+                    }
                     continue;
                 }
 
+                readCount++;
+                
                 if (bytesRead < MotionParser.RequiredMotionReportLength && !shortReportWarned)
                 {
                     shortReportWarned = true;
@@ -269,7 +298,7 @@ internal sealed class ControllerWorker
             {
                 rightConnected = true;
             }
-            else if (productId == 0x2009 || productId == 0x2017)
+            else if (productId == 0x2009 || productId == 0x200E || productId == 0x2017 || productId == 0x2019)
             {
                 leftConnected = true;
                 rightConnected = true;
@@ -294,11 +323,122 @@ internal sealed class ControllerWorker
             : (ConnectionState.SingleConnected, "左搖桿未連線");
     }
 
+    // 完成 Joy-Con / Pro Controller 的 HID 初始化：先切換到可讀的輸入報告模式，再啟用 IMU。
+    private static bool TryInitializeHid(HidStream stream, HidDevice device)
+    {
+        // 首先查詢搖桿信息以喚醒連接
+        try
+        {
+            Console.WriteLine($"[診斷] 查詢搖桿信息...");
+            var outputReportLength = device.GetMaxOutputReportLength();
+            var command = new byte[outputReportLength];
+
+            command[0] = 0x01; // 輸出報告 ID
+            command[1] = 0x00; // 標頭
+            command[2] = 0x02; // 子命令：要求搖桿信息
+
+            stream.Write(command, 0, command.Length);
+            stream.Flush();
+            System.Threading.Thread.Sleep(100);
+            
+            // 嘗試讀取回應
+            stream.ReadTimeout = 500;
+            var reportBuffer = new byte[device.GetMaxInputReportLength()];
+            try
+            {
+                var bytesRead = stream.Read(reportBuffer, 0, reportBuffer.Length);
+                Console.WriteLine($"[診斷] 收到搖桿信息回應：{bytesRead} 字元");
+            }
+            catch (TimeoutException)
+            {
+                Console.WriteLine($"[診斷] 搖桿信息查詢超時");
+            }
+            stream.ReadTimeout = 2000;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[診斷] 搖桿信息查詢異常：{ex.Message}");
+        }
+
+        if (!TrySetInputReportMode(stream, device, 0x30))
+        {
+            return false;
+        }
+
+        if (!TryEnableImu(stream, device))
+        {
+            return false;
+        }
+
+        // 啟用振動功能（部分情況下需要此命令喚醒搖桿報告輸出）
+        if (!TryEnableVibration(stream, device))
+        {
+            Console.WriteLine($"[診斷] 啟用振動失敗，但繼續初始化");
+        }
+
+        return true;
+    }
+
+    private static bool TryEnableVibration(HidStream stream, HidDevice device)
+    {
+        try
+        {
+            Console.WriteLine($"[診斷] 啟用振動...");
+            var outputReportLength = device.GetMaxOutputReportLength();
+            var command = new byte[outputReportLength];
+
+            command[0] = 0x01; // 輸出報告 ID
+            command[1] = 0x00; // 標頭
+            command[2] = 0x48; // 子命令：啟用振動
+            command[3] = 0x01; // 啟用
+
+            stream.Write(command, 0, command.Length);
+            stream.Flush();
+            System.Threading.Thread.Sleep(100);
+            Console.WriteLine($"[診斷] 振動啟用成功");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[診斷] 啟用振動失敗：{ex.Message}");
+            return false;
+        }
+    }
+
+    // 設定控制器的輸入報告模式，讓它開始發送 0x30/0x31 類型的 HID 資料報告。
+    private static bool TrySetInputReportMode(HidStream stream, HidDevice device, byte reportMode)
+    {
+        try
+        {
+            Console.WriteLine($"[診斷] 設定輸入報告模式為 0x{reportMode:X2}...");
+            var outputReportLength = device.GetMaxOutputReportLength();
+            var command = new byte[outputReportLength];
+
+            command[0] = 0x01; // 輸出報告 ID
+            command[1] = 0x00; // 標頭 / 封包編號
+            command[2] = 0x03; // 子命令：設定輸入報告模式
+            command[3] = reportMode; // 0x30 = 標準全資料模式
+
+            stream.Write(command, 0, command.Length);
+            stream.Flush();
+            System.Threading.Thread.Sleep(50);
+            Console.WriteLine($"[診斷] 輸入報告模式設定成功");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[診斷] 設定輸入報告模式失敗：{ex.Message}");
+            NotificationService.Notify($"設定 HID 輸入報告模式失敗（{device.DevicePath}）：{ex.Message}");
+            return false;
+        }
+    }
+
     // 發送子命令要求控制器啟用 IMU（陀螺儀/加速度計）偵測，並回報是否成功送出
     private static bool TryEnableImu(HidStream stream, HidDevice device)
     {
         try
         {
+            Console.WriteLine($"[診斷] 啟用 IMU...");
             var outputReportLength = device.GetMaxOutputReportLength();
             var command = new byte[outputReportLength];
 
@@ -308,11 +448,15 @@ internal sealed class ControllerWorker
             command[3] = 0x01; // 啟用
 
             stream.Write(command, 0, command.Length);
+            stream.Flush();
+            System.Threading.Thread.Sleep(50);
+            Console.WriteLine($"[診斷] IMU 啟用成功");
             return true;
         }
         catch (Exception ex)
         {
-            NotificationService.Notify($"啟用體感偵測失敗（{device.DevicePath}）：{ex.Message}");
+            Console.WriteLine($"[診斷] 啟用 IMU 失敗：{ex.Message}");
+            NotificationService.Notify($"啟用體感偵測失敗（{device.DevicePath}）：{ex.Message}。若搖桿燈持續閃爍，表示控制器尚未完成 Windows 配對，請先完成藍牙配對後再重啟程式。");
             return false;
         }
     }
@@ -323,6 +467,10 @@ internal sealed class ControllerWorker
         try
         {
             bytesRead = stream.Read(buffer, 0, buffer.Length);
+            if (bytesRead > 0 && AppConfig.VerboseLogging)
+            {
+                Console.WriteLine($"[診斷] 讀取 {bytesRead} 字節");
+            }
             return bytesRead > 0;
         }
         catch (TimeoutException)
@@ -363,11 +511,12 @@ internal sealed class ControllerWorker
 
             if (AppConfig.VerboseLogging)
             {
+                var buttonStr = $"Btn[3]=0x{report[3]:X2} Btn[4]=0x{report[4]:X2} Btn[5]=0x{report[5]:X2}";
                 Console.WriteLine(
                     $"Report: 0x{reportId:X2} | " +
                     (hasFullMotionData
-                        ? $"Accel X: {accel.x:F3}, Y: {accel.y:F3}, Z: {accel.z:F3} | Gyro X: {gyro.x:F2}, Y: {gyro.y:F2}, Z: {gyro.z:F2}"
-                        : "體感資料不完整，本次已略過"));
+                        ? $"Accel X: {accel.x:F3}, Y: {accel.y:F3}, Z: {accel.z:F3} | Gyro X: {gyro.x:F2}, Y: {gyro.y:F2}, Z: {gyro.z:F2} | {buttonStr}"
+                        : $"體感資料不完整 | {buttonStr}"));
             }
 
             if (hasFullMotionData && AppConfig.MotionKeyMappingEnabled)
