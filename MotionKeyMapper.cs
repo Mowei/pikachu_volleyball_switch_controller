@@ -17,13 +17,19 @@ internal sealed class MotionKeyMapper
     public MotionKeyMapper(PlayerMode mode)
     {
         var bindings = KeyBindings.Load();
-        var set = mode == PlayerMode.SinglePlayer ? bindings.SinglePlayer : bindings.LeftPlayer;
+        var set = mode switch
+        {
+            PlayerMode.SinglePlayer => bindings.SinglePlayer,
+            PlayerMode.RightPlayer => bindings.RightPlayer,
+            PlayerMode.DualPlayer => bindings.DualPlayer,
+            _ => bindings.LeftPlayer
+        };
 
-        _jumpKey = KeyBindings.Parse(set.Jump, VirtualKeyShort.KEY_R);
-        _downKey = KeyBindings.Parse(set.Down, VirtualKeyShort.KEY_V);
-        _leftKey = KeyBindings.Parse(set.Left, VirtualKeyShort.KEY_D);
-        _rightKey = KeyBindings.Parse(set.Right, VirtualKeyShort.KEY_G);
-        _hitKey = KeyBindings.Parse(set.Hit, VirtualKeyShort.KEY_Z);
+        _jumpKey = KeyBindings.Parse(set.Jump, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_I : VirtualKeyShort.KEY_R);
+        _downKey = KeyBindings.Parse(set.Down, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_K : VirtualKeyShort.KEY_V);
+        _leftKey = KeyBindings.Parse(set.Left, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_J : VirtualKeyShort.KEY_D);
+        _rightKey = KeyBindings.Parse(set.Right, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_L : VirtualKeyShort.KEY_G);
+        _hitKey = KeyBindings.Parse(set.Hit, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_O : VirtualKeyShort.KEY_Z);
     }
 
     // 根據目前加速度/陀螺儀讀數比對門檻值，模擬鍵盤按下/抬起

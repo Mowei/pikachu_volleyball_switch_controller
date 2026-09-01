@@ -24,13 +24,31 @@ internal sealed class KeyBindingsData
         Hit = nameof(VirtualKeyShort.RETURN)
     };
 
-    public KeyBindingSet LeftPlayer { get; set; } = new()
+    public KeyBindingSet DualPlayer { get; set; } = new()
     {
         Jump = nameof(VirtualKeyShort.KEY_R),
-        Down = nameof(VirtualKeyShort.KEY_V),
+        Down = nameof(VirtualKeyShort.KEY_F),
         Left = nameof(VirtualKeyShort.KEY_D),
         Right = nameof(VirtualKeyShort.KEY_G),
         Hit = nameof(VirtualKeyShort.KEY_Z)
+    };
+
+    public KeyBindingSet LeftPlayer { get; set; } = new()
+    {
+        Jump = nameof(VirtualKeyShort.KEY_R),
+        Down = nameof(VirtualKeyShort.KEY_F),
+        Left = nameof(VirtualKeyShort.KEY_D),
+        Right = nameof(VirtualKeyShort.KEY_G),
+        Hit = nameof(VirtualKeyShort.KEY_Z)
+    };
+
+    public KeyBindingSet RightPlayer { get; set; } = new()
+    {
+        Jump = nameof(VirtualKeyShort.UP_ARROW),
+        Down = nameof(VirtualKeyShort.DOWN_ARROW),
+        Left = nameof(VirtualKeyShort.LEFT_ARROW),
+        Right = nameof(VirtualKeyShort.RIGHT_ARROW),
+        Hit = nameof(VirtualKeyShort.RETURN)
     };
 }
 

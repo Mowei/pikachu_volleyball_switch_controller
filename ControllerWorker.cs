@@ -7,24 +7,40 @@ namespace SwitchMotionBridge;
 // 在背景執行執行緒，負責偵測 Joy-Con/Pro 控制器、讀取 HID 報告並轉發體感資料。
 internal sealed class ControllerWorker
 {
-    private readonly MotionKeyMapper _keyMapper;
-    private readonly MotionCalibrator _calibrator = new();
+    private readonly PlayerMode _defaultMode;
     private readonly Action<ConnectionState, string> _onStatusChanged; // 連線狀態變更時的回調（更新系統匣圖示）
-    private readonly ConcurrentDictionary<string, Thread> _deviceReaders = new(); // 依裝置路徑追蹤各自的讀取執行緒，讓左右搖桿可同時讀取
+    private readonly ConcurrentDictionary<string, DeviceReaderState> _deviceReaders = new(); // 依裝置路徑追蹤各自的讀取執行緒與按鍵映射
     private readonly object _processLock = new(); // 多裝置可能同時回報動作，序列化按鍵狀態機的存取
     private CancellationTokenSource? _cts;
     private Thread? _monitorThread;
 
+    private sealed class DeviceReaderState
+    {
+        public Thread Thread { get; }
+        public MotionKeyMapper Mapper { get; }
+        public MotionCalibrator Calibrator { get; }
+
+        public DeviceReaderState(Thread thread, MotionKeyMapper mapper, MotionCalibrator calibrator)
+        {
+            Thread = thread;
+            Mapper = mapper;
+            Calibrator = calibrator;
+        }
+    }
+
     public ControllerWorker(PlayerMode mode, Action<ConnectionState, string> onStatusChanged)
     {
-        _keyMapper = new MotionKeyMapper(mode);
+        _defaultMode = mode;
         _onStatusChanged = onStatusChanged;
     }
 
     // 觸發一次新的體感零點校正
     public void StartCalibration()
     {
-        _calibrator.StartCalibration();
+        foreach (var reader in _deviceReaders.Values)
+        {
+            reader.Calibrator.StartCalibration();
+        }
     }
 
     // 建立並啟動監控執行緒
@@ -51,7 +67,7 @@ internal sealed class ControllerWorker
         _monitorThread?.Join(1000);
         foreach (var reader in _deviceReaders.Values)
         {
-            reader.Join(1000);
+            reader.Thread.Join(1000);
         }
         _deviceReaders.Clear();
         _cts.Dispose();
@@ -75,10 +91,11 @@ internal sealed class ControllerWorker
 
                 foreach (var (_, device) in devices)
                 {
+                    var playerMode = ResolveDevicePlayerMode(device, _defaultMode);
                     _deviceReaders.AddOrUpdate(
                         device.DevicePath,
-                        _ => StartDeviceReader(device, cancellationToken),
-                        (_, existingReader) => existingReader.IsAlive ? existingReader : StartDeviceReader(device, cancellationToken));
+                        _ => StartDeviceReader(device, playerMode, cancellationToken),
+                        (_, existingReader) => existingReader.Thread.IsAlive ? existingReader : StartDeviceReader(device, playerMode, cancellationToken));
                 }
             }
 
@@ -87,19 +104,37 @@ internal sealed class ControllerWorker
     }
 
     // 建立並啟動單一裝置的讀取執行緒
-    private Thread StartDeviceReader(HidDevice device, CancellationToken cancellationToken)
+    private DeviceReaderState StartDeviceReader(HidDevice device, PlayerMode playerMode, CancellationToken cancellationToken)
     {
-        var thread = new Thread(() => DeviceReadLoop(device, cancellationToken))
+        var mapper = new MotionKeyMapper(playerMode);
+        var calibrator = new MotionCalibrator();
+        var thread = new Thread(() => DeviceReadLoop(device, mapper, calibrator, cancellationToken))
         {
             IsBackground = true,
             Name = $"SwitchMotionBridgeDevice-{device.DevicePath}"
         };
         thread.Start();
-        return thread;
+        return new DeviceReaderState(thread, mapper, calibrator);
+    }
+
+    private static PlayerMode ResolveDevicePlayerMode(HidDevice device, PlayerMode defaultMode)
+    {
+        if (defaultMode == PlayerMode.SinglePlayer)
+        {
+            return PlayerMode.SinglePlayer;
+        }
+
+        var productId = device.ProductID;
+        if (productId == 0x2007)
+        {
+            return PlayerMode.RightPlayer;
+        }
+
+        return PlayerMode.LeftPlayer;
     }
 
     // 單一裝置的讀取迴圈：開啟串流、啟用 IMU 並持續讀取報告，裝置中斷或取消時結束
-    private void DeviceReadLoop(HidDevice device, CancellationToken cancellationToken)
+    private void DeviceReadLoop(HidDevice device, MotionKeyMapper mapper, MotionCalibrator calibrator, CancellationToken cancellationToken)
     {
         try
         {
@@ -115,7 +150,7 @@ internal sealed class ControllerWorker
                     continue;
                 }
 
-                ProcessReport(reportBuffer, bytesRead);
+                ProcessReport(reportBuffer, bytesRead, mapper, calibrator);
             }
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
@@ -221,7 +256,7 @@ internal sealed class ControllerWorker
     }
 
     // 解析報告內容，於啟用詳細記錄時列印除錯訊息，並在啟用體感轉按鍵時進一步處理
-    private void ProcessReport(byte[] report, int length)
+    private void ProcessReport(byte[] report, int length, MotionKeyMapper mapper, MotionCalibrator calibrator)
     {
         if (length < 1)
         {
@@ -240,7 +275,7 @@ internal sealed class ControllerWorker
         // 多裝置可能同時解析並更新按鍵狀態機，需序列化避免資料競爭
         lock (_processLock)
         {
-            (accel, gyro) = _calibrator.Apply(accel, gyro);
+            (accel, gyro) = calibrator.Apply(accel, gyro);
 
             if (AppConfig.VerboseLogging)
             {
@@ -252,7 +287,7 @@ internal sealed class ControllerWorker
 
             if (AppConfig.MotionKeyMappingEnabled)
             {
-                _keyMapper.MapMotionToKeys(accel, gyro);
+                mapper.MapMotionToKeys(accel, gyro);
             }
         }
     }

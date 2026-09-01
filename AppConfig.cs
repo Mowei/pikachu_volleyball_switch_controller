@@ -18,7 +18,7 @@ internal static class AppConfig
     public static bool MotionKeyMappingEnabled = false; // 是否啟用「體感轉按鍵」功能
     public static bool VerboseLogging = false; // 是否於主控台列印每筆 IMU 報告，預設關閉以免洗版拖慢效能
 
-    // 依命令列參數判斷目前為單人模式或雙人模式（左搖桿玩家）
+    // 依命令列參數判斷目前為單人模式或雙人模式；未帶參數時預設為雙人模式
     public static PlayerMode DetermineMode()
     {
         var args = Environment.GetCommandLineArgs();
@@ -27,6 +27,6 @@ internal static class AppConfig
             return PlayerMode.SinglePlayer;
         }
 
-        return PlayerMode.LeftPlayer;
+        return PlayerMode.DualPlayer;
     }
 }
