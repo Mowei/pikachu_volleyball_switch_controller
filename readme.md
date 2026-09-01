@@ -1,66 +1,117 @@
-# Switch 手把體感對戰中介程式
+# Switch Motion Bridge
 
-這是一個用 C# 建立的 Switch 手把體感轉鍵盤中介程式範例。
+這是一個以 C# 撰寫的 Windows 系統匣應用程式，用於將 Nintendo Switch Joy-Con / Pro Controller 的 IMU（加速度計與陀螺儀）資料轉換成鍵盤輸入。它會在背景持續偵測控制器、啟用 IMU、解析體感資料，並依設定將動作映射到鍵盤按鍵。
 
 ## 主要功能
 
-- 讀取 Nintendo Switch Joy-Con / Pro Controller HID 裝置
-- 啟用 IMU（加速度 / 陀螺儀）
-- 解析簡單體感動作
-- 將動作對應為按鍵模擬
-- 以 Windows 系統列常駐形式運行
-- 使用顏色圖示與右鍵選單顯示控制器連線狀態
-- 右鍵選單會顯示左/右搖桿連線狀態，不再使用氣球提示
-- 右鍵選單提供「體感轉按鍵」勾選項，可即時開關功能，無需重新編譯
+- 偵測 Nintendo Switch 控制器（Vendor ID: `0x057E`）
+- 支援 Joy-Con L、Joy-Con R、Pro Controller 產品 ID
+- 啟用控制器 IMU（加速度與陀螺儀）
+- 解析左右移動、下蹲、跳躍、揮擊等動作
+- 使用 Windows `SendInput` API 模擬鍵盤輸入
+- 以系統匣圖示方式常駐執行
+- 可從選單切換「體感轉按鍵」開關
+- 提供體感校正、按鍵設定與敏感度設定的編輯入口
+- 支援 `single` 命令列參數切換單人模式
+
+## 專案結構
+
+- `Program.cs`：應用程式進入點，啟動系統匣主程式
+- `AppConfig.cs`：定義廠商 ID、支援控制器產品 ID、動作閾值與啟動模式判斷
+- `PlayerMode.cs`：玩家模式列舉（單人／雙人左搖桿）
+- `ConnectionState.cs`：連線狀態列舉（未連線／單邊連線／雙邊連線）
+- `ControllerWorker.cs`：背景監控與裝置讀取執行緒，處理 HID 讀取與 IMU 事件
+- `MotionParser.cs`：解析加速度計與陀螺儀數值
+- `MotionCalibrator.cs`：進行體感零點校正
+- `MotionKeyMapper.cs`：將 IMU 資料轉成方向鍵 / 動作鍵
+- `KeyboardSender.cs`：鍵盤按壓與放開的實作
+- `MotionSettings.cs`：讀取/建立 `motionsettings.json`
+- `KeyBindings.cs`：讀取/建立 `keybindings.json`
+- `TrayApplicationContext.cs`：系統匣 UI 與控制器工作者的生命週期控制
+- `TrayIconManager.cs`：通知圖示、狀態顯示與右鍵選單
+- `SwitchMotionBridge.csproj`：.NET 8.0 Windows Forms 專案設定，依賴 `HidSharp`
 
 ## 建置與執行
 
-1. 開啟命令列，切換到本專案目錄：
+在 Windows 環境中執行：
 
 ```powershell
+dotnet restore
 dotnet build
 dotnet run
 ```
 
-2. 連接 Switch 控制器
+若要啟動單人模式：
+
+```powershell
+dotnet run -- single
+```
+
+未帶參數時，預設為雙人模式中的「左搖桿玩家」。
+
+## 控制器與設定
+
+### 支援的控制器
 
 - `VendorID = 0x057E`
-- 支援 `ProductID` 包含 Joy-Con L / R、Pro Controller
+- `ProductID = 0x2006, 0x2007, 0x2009, 0x2017`
 
-3. 讓程式讀到 Controller 並開始輸出按鍵
+### 內建動作對應
 
-	- 預設「體感轉按鍵」為關閉狀態，此時只會在主控台輸出 IMU 數值供除錯。
-	- 確認體感方向與閾值後，於系統列右鍵選單勾選「體感轉按鍵」即可啟用鍵盤按鍵輸出。
-	- 加入命令列參數 `single` 可切換為單人模式（例如 `dotnet run -- single`），預設為雙人模式的左搖桿玩家。
-
-4. 程式會最小化到系統列，右鍵點選圖示可查看連線狀態、開關體感轉按鍵與結束選項
-
-## 專案檔案
-
-- `SwitchMotionBridge.csproj`：.NET 8.0 `net8.0-windows` WinForms 專案，使用 `HidSharp`。
-- `Program.cs`：程式進入點，啟動系統列應用程式。
-- `AppConfig.cs`：設定常數（廠商/產品 ID、動作閾值）與命令列模式判斷。
-- `PlayerMode.cs` / `ConnectionState.cs`：玩家模式與控制器連線狀態列舉。
-- `ControllerWorker.cs`：背景執行緒，負責偵測控制器、讀取 HID 報告並啟用 IMU。
-- `MotionParser.cs`：解析 HID 報告中的加速度計與陀螺儀數值。
-- `MotionKeyMapper.cs`：將體感數值轉換為方向鍵按住與跳躍/攻擊按鍵。
-- `KeyboardSender.cs`：透過 Windows `SendInput` API 模擬鍵盤輸入。
-- `TrayIconManager.cs`：系統列圖示、狀態選單與「體感轉按鍵」勾選項。
-- `TrayApplicationContext.cs`：串接系統列 UI 與控制器偵測執行緒的生命週期。
-
-## 說明
-
-程式範例中，依玩家模式將體感動作對應到不同按鍵：
-
-| 動作 | 單人模式 (`single`) | 雙人模式左搖桿玩家（預設） |
+| 動作 | 單人模式 | 雙人模式（左搖桿） |
 | --- | --- | --- |
-| 向右移動 | → | G |
-| 向左移動 | ← | D |
-| 下蹲 | ↓ | V |
-| 跳躍 | ↑ | R |
-| 攻擊/揮擊 | Enter | Z |
+| 向右移動 | 方向鍵右 | `G` |
+| 向左移動 | 方向鍵左 | `D` |
+| 下蹲 | 方向鍵下 | `V` |
+| 跳躍 | 方向鍵上 | `R` |
+| 揮擊 / 攻擊 | `Enter` | `Z` |
 
-程式會辨識 Joy-Con L / R 以及 Pro Controller，並在系統列右鍵選單中顯示左/右搖桿是否已連線。
+## 設定檔
 
-> 注意：這個範例提供觀念與架構，IMU 資料位置與報文格式可能需要根據實際手把而微調。若要直接切換成虛擬 XInput，請改用 `ViGEm` 建立虛擬手把。
+專案會在執行時自動建立以下設定檔，並在輸出目錄中複製到執行檔旁：
+
+- `motionsettings.json`：調整加速度與陀螺儀門檻值
+- `keybindings.json`：調整每個動作對應的鍵位
+
+這兩個檔案都允許直接編輯，修改後需重新啟動程式才會生效。
+
+### `motionsettings.json` 內容重點
+
+- `MoveThreshold`：左右移動的觸發門檻
+- `MoveReleaseThreshold`：移動放開的回饋門檻
+- `JumpThreshold`：跳躍觸發閾值
+- `DownThreshold`：下蹲觸發閾值
+- `HitThreshold`：揮擊觸發閾值
+- `MotionCooldownMs`：跳躍 / 攻擊的冷卻時間
+
+### `keybindings.json` 內容重點
+
+- `SinglePlayer`：單人模式的按鍵綁定
+- `LeftPlayer`：雙人模式左搖桿玩家的按鍵綁定
+
+按鍵名稱必須對應 `VirtualKeyShort` 列舉成員名稱。
+
+## 系統匣功能
+
+程式啟動後會縮到系統匣，右鍵點選圖示可以：
+
+- 查看目前連線狀態
+- 開啟 / 關閉「體感轉按鍵」
+- 啟動體感校正
+- 編輯按鍵設定
+- 編輯體感參數設定
+- 離開程式
+
+## 注意事項
+
+- 這個專案主要是用來匯出鍵盤輸入的概念驗證範例，不保證能直接適用於所有控制器型號。
+- IMU 讀數與實際感測器方向可能因 Joy-Con 型號或藍芽/USB 連線方式而略有差異。
+- 如需將動作映射到遊戲控制器模擬器，可能需搭配 `ViGEm` 等工具進一步轉成 XInput / 虛擬手把。
+
+## 需求
+
+- Windows 10 / 11
+- .NET 8 SDK
+- Nintendo Switch 控制器（Joy-Con / Pro Controller）
+- `HidSharp` 套件
 
