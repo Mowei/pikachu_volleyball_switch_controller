@@ -8,9 +8,10 @@
 - 支援 Joy-Con L、Joy-Con R、Pro Controller 產品 ID
 - 啟用控制器 IMU（加速度與陀螺儀）
 - 解析左右移動、下蹲、跳躍、揮擊等動作
+- 解析控制器實體按鈕（A/B/X/Y、L/R/ZL/ZR、方向鍵、搖桿按壓等）並可獨立對應鍵盤
 - 使用 Windows `SendInput` API 模擬鍵盤輸入
 - 以系統匣圖示方式常駐執行
-- 可從選單切換「體感轉按鍵」開關
+- 可從選單分別切換「啟用體感」與「啟用按鍵」開關，預設皆為啟用
 - 提供體感校正、按鍵設定與敏感度設定的編輯入口
 - 支援 `single` 命令列參數切換單人模式
 
@@ -21,9 +22,10 @@
 - `PlayerMode.cs`：玩家模式列舉（單人／雙人 1P / 2P）
 - `ConnectionState.cs`：連線狀態列舉（未連線／單邊連線／雙邊連線）
 - `ControllerWorker.cs`：背景監控與裝置讀取執行緒，處理 HID 讀取與 IMU 事件
-- `MotionParser.cs`：解析加速度計與陀螺儀數值
+- `MotionParser.cs`：解析加速度計、陀螺儀數值與實體按鈕狀態
 - `MotionCalibrator.cs`：進行體感零點校正
 - `MotionKeyMapper.cs`：將 IMU 資料轉成方向鍵 / 動作鍵
+- `ButtonKeyMapper.cs`：將實體按鈕的按下/放開狀態同步為鍵盤按鍵（非體感）
 - `KeyboardSender.cs`：鍵盤按壓與放開的實作
 - `MotionSettings.cs`：讀取/建立 `motionsettings.json`
 - `KeyBindings.cs`：讀取/建立 `keybindings.json`
@@ -91,6 +93,7 @@ dotnet run -- single
 - `SinglePlayer`：單人模式的按鍵綁定
 - `LeftPlayer`：雙人模式中的 1P（左控制器）按鍵綁定
 - 2P（右控制器）則依實際控制器配置對應另一組設定
+- 每個模式下的 `Buttons` 物件可額外設定實體按鈕對鍵盤按鍵的對應（非體感），鍵名例如 `A`、`B`、`X`、`Y`、`L`、`R`、`ZL`、`ZR`、`Plus`、`Minus`、`Home`、`Capture`、`LStick`、`RStick`、`SL`、`SR`、`DPadUp`、`DPadDown`、`DPadLeft`、`DPadRight`，預設為空物件（不綁定任何按鈕）
 
 按鍵名稱必須對應 `VirtualKeyShort` 列舉成員名稱。
 
@@ -99,7 +102,8 @@ dotnet run -- single
 程式啟動後會縮到系統匣，右鍵點選圖示可以：
 
 - 查看目前連線狀態
-- 開啟 / 關閉「體感轉按鍵」
+- 開啟 / 關閉「啟用體感」（IMU 動作轉鍵盤，預設開啟）
+- 開啟 / 關閉「啟用按鍵」（實體按鈕轉鍵盤，預設開啟）
 - 啟動體感校正
 - 編輯按鍵設定
 - 編輯體感參數設定
