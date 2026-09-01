@@ -48,6 +48,16 @@ internal sealed class ControllerWorker
         }
     }
 
+    // 通知所有目前作用中的裝置重新讀取 keybindings.json，供設定檔熱重載使用
+    public void ReloadKeyBindings()
+    {
+        foreach (var reader in _deviceReaders.Values)
+        {
+            reader.Mapper.ReloadBindings();
+            reader.ButtonMapper.ReloadBindings();
+        }
+    }
+
     // 建立並啟動監控執行緒
     public void Start()
     {
@@ -69,11 +79,23 @@ internal sealed class ControllerWorker
         }
 
         _cts.Cancel();
-        _monitorThread?.Join(1000);
+
+        // 逾時需大於裝置讀取的 HID ReadTimeout（2000ms），避免執行緒仍在阻塞讀取時就被視為逾時
+        var joinTimeout = TimeSpan.FromSeconds(3);
+
+        if (_monitorThread is not null && !_monitorThread.Join(joinTimeout))
+        {
+            NotificationService.Notify("監控執行緒未能於逾時內結束，可能仍在背景執行");
+        }
+
         foreach (var reader in _deviceReaders.Values)
         {
-            reader.Thread.Join(1000);
+            if (!reader.Thread.Join(joinTimeout))
+            {
+                NotificationService.Notify("裝置讀取執行緒未能於逾時內結束，可能仍在背景執行");
+            }
         }
+
         _deviceReaders.Clear();
         _cts.Dispose();
         _cts = null;

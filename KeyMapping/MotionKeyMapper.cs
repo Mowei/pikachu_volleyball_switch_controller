@@ -6,11 +6,12 @@ namespace SwitchMotionBridge.KeyMapping;
 // 將加速度計/陀螺儀資料轉換為方向鍵按住與跳躍/攻擊鍵採作。
 internal sealed class MotionKeyMapper
 {
-    private readonly VirtualKeyShort _jumpKey;
-    private readonly VirtualKeyShort _downKey;
-    private readonly VirtualKeyShort _leftKey;
-    private readonly VirtualKeyShort _rightKey;
-    private readonly VirtualKeyShort _hitKey;
+    private readonly PlayerMode _mode;
+    private VirtualKeyShort _jumpKey;
+    private VirtualKeyShort _downKey;
+    private VirtualKeyShort _leftKey;
+    private VirtualKeyShort _rightKey;
+    private VirtualKeyShort _hitKey;
     private DateTime _lastJump = DateTime.MinValue;
     private DateTime _lastHit = DateTime.MinValue;
     private bool _leftHeld;
@@ -19,8 +20,17 @@ internal sealed class MotionKeyMapper
 
     public MotionKeyMapper(PlayerMode mode)
     {
+        _mode = mode;
+        LoadBindings();
+    }
+
+    // 重新讀取 keybindings.json 並套用最新的按鍵綁定，供設定檔熱重載使用
+    public void ReloadBindings() => LoadBindings();
+
+    private void LoadBindings()
+    {
         var bindings = KeyBindings.Load();
-        var set = mode switch
+        var set = _mode switch
         {
             PlayerMode.SinglePlayer => bindings.SinglePlayer,
             PlayerMode.RightPlayer => bindings.RightPlayer,
@@ -28,12 +38,13 @@ internal sealed class MotionKeyMapper
             _ => bindings.LeftPlayer
         };
 
-        _jumpKey = KeyBindings.Parse(set.Jump, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_I : VirtualKeyShort.KEY_R);
-        _downKey = KeyBindings.Parse(set.Down, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_K : VirtualKeyShort.KEY_V);
-        _leftKey = KeyBindings.Parse(set.Left, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_J : VirtualKeyShort.KEY_D);
-        _rightKey = KeyBindings.Parse(set.Right, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_L : VirtualKeyShort.KEY_G);
-        _hitKey = KeyBindings.Parse(set.Hit, mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_O : VirtualKeyShort.KEY_Z);
+        _jumpKey = KeyBindings.Parse(set.Jump, _mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_I : VirtualKeyShort.KEY_R);
+        _downKey = KeyBindings.Parse(set.Down, _mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_K : VirtualKeyShort.KEY_V);
+        _leftKey = KeyBindings.Parse(set.Left, _mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_J : VirtualKeyShort.KEY_D);
+        _rightKey = KeyBindings.Parse(set.Right, _mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_L : VirtualKeyShort.KEY_G);
+        _hitKey = KeyBindings.Parse(set.Hit, _mode == PlayerMode.RightPlayer ? VirtualKeyShort.KEY_O : VirtualKeyShort.KEY_Z);
     }
+
 
     // 根據目前加速度/陀螺儀讀數比對門檻值，模擬鍵盤按下/抬起
     public void MapMotionToKeys((double x, double y, double z) accel, (double x, double y, double z) gyro)

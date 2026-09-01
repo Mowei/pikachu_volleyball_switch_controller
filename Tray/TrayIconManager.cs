@@ -11,13 +11,16 @@ internal sealed class TrayIconManager : IDisposable
     private readonly Icon _redIcon;
     private readonly Icon _yellowIcon;
     private readonly Icon _greenIcon;
+    private readonly nint _redIconHandle;
+    private readonly nint _yellowIconHandle;
+    private readonly nint _greenIconHandle;
 
     public TrayIconManager(EventHandler onExitClick, EventHandler onCalibrateClick, EventHandler onEditKeyBindingsClick, EventHandler onEditMotionSettingsClick)
     {
         // 預先產生三種顏色圖示，對應三種連線狀態
-        _redIcon = CreateColorIcon(Color.Red);
-        _yellowIcon = CreateColorIcon(Color.Yellow);
-        _greenIcon = CreateColorIcon(Color.LimeGreen);
+        (_redIcon, _redIconHandle) = CreateColorIcon(Color.Red);
+        (_yellowIcon, _yellowIconHandle) = CreateColorIcon(Color.Yellow);
+        (_greenIcon, _greenIconHandle) = CreateColorIcon(Color.LimeGreen);
 
         _statusMenuItem = new ToolStripMenuItem("狀態：未連線")
         {
@@ -98,8 +101,8 @@ internal sealed class TrayIconManager : IDisposable
         _statusMenuItem.Text = $"狀態：{text}";
     }
 
-    // 繪製一個 16x16 圓形圖標作為系統匣狀態指示
-    private static Icon CreateColorIcon(Color color)
+    // 繪製一個 16x16 圓形圖標作為系統匣狀態指示，同時回傳原始 HICON 句柄以便日後釋放
+    private static (Icon icon, nint handle) CreateColorIcon(Color color)
     {
         using var bitmap = new Bitmap(16, 16);
         using (var g = Graphics.FromImage(bitmap))
@@ -111,11 +114,12 @@ internal sealed class TrayIconManager : IDisposable
         }
 
         var handle = bitmap.GetHicon();
-        return Icon.FromHandle(handle);
+        return (Icon.FromHandle(handle), handle);
     }
 
-    [DllImport("gdi32.dll")]
-    private static extern bool DeleteObject(nint hObject);
+    // Icon.FromHandle 不擁有句柄所有權，需自行以 DestroyIcon 釋放 GetHicon() 產生的 HICON，否則會導致句柄洩漏
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(nint hIcon);
 
     // 釋放通知圖示與所有自建的圖標資源
     public void Dispose()
@@ -125,5 +129,8 @@ internal sealed class TrayIconManager : IDisposable
         _redIcon.Dispose();
         _yellowIcon.Dispose();
         _greenIcon.Dispose();
+        DestroyIcon(_redIconHandle);
+        DestroyIcon(_yellowIconHandle);
+        DestroyIcon(_greenIconHandle);
     }
 }

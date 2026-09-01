@@ -7,13 +7,23 @@ namespace SwitchMotionBridge.KeyMapping;
 // 依 keybindings.json 中 Buttons 設定，將控制器實體按鈕的按下/放開狀態同步為鍵盤按鍵（非體感）。
 internal sealed class ButtonKeyMapper
 {
+    private readonly PlayerMode _mode;
     private readonly Dictionary<string, VirtualKeyShort> _bindings = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, bool> _pressedState = new(StringComparer.OrdinalIgnoreCase);
 
     public ButtonKeyMapper(PlayerMode mode)
     {
+        _mode = mode;
+        LoadBindings();
+    }
+
+    // 重新讀取 keybindings.json 並套用最新的按鈕綁定，供設定檔熱重載使用
+    public void ReloadBindings() => LoadBindings();
+
+    private void LoadBindings()
+    {
         var bindings = KeyBindings.Load();
-        var set = mode switch
+        var set = _mode switch
         {
             PlayerMode.SinglePlayer => bindings.SinglePlayer,
             PlayerMode.RightPlayer => bindings.RightPlayer,
@@ -21,6 +31,7 @@ internal sealed class ButtonKeyMapper
             _ => bindings.LeftPlayer
         };
 
+        _bindings.Clear();
         foreach (var (buttonName, keyName) in set.Buttons)
         {
             if (Enum.TryParse<VirtualKeyShort>(keyName, ignoreCase: true, out var key))
@@ -29,6 +40,7 @@ internal sealed class ButtonKeyMapper
             }
         }
     }
+
 
     // 依目前按鈕狀態同步鍵盤按下/放開，僅在狀態變化時送出事件
     public void MapButtonsToKeys(ControllerButtons buttons)
