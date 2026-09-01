@@ -206,28 +206,15 @@ internal static class KeyboardSender
         SendKey(key, false);
     }
 
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
     // 模擬鍵盤按下或抬起事件，可用於長按不放的場合
+
     public static void SendKey(VirtualKeyShort key, bool keyDown)
     {
-        // 改用掃描碼送出，讓遊戲/輸入法將其視為實體按鍵，而非被注音等 IME 轉換
-        var scanCode = (ushort)MapVirtualKey((uint)key, MAPVK_VK_TO_VSC);
-        var flags = (uint)KEYEVENTF.SCANCODE | (keyDown ? 0u : (uint)KEYEVENTF.KEYUP);
+        var flags = keyDown ? 0u : (uint)KEYEVENTF.KEYUP;
 
-        var input = new INPUT
-        {
-            type = 1,
-            U = new InputUnion
-            {
-                ki = new KEYBDINPUT
-                {
-                    wVk = 0,
-                    wScan = scanCode,
-                    dwFlags = flags,
-                    dwExtraInfo = GetMessageExtraInfo()
-                }
-            }
-        };
-
-        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+        keybd_event((byte)key, 0, flags, UIntPtr.Zero);
     }
 }
